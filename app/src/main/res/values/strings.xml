@@ -1,0 +1,35 @@
+<resources>
+    <string name="app_name" translatable="false">Monidroid Client</string>
+    <string name="title_activity_main" translatable="false">Monidroid Client</string>
+
+    <!-- Main page strings -->
+    <string name="ip_address">IP address</string>
+    <string name="connect_button">Connect</string>
+    <string name="connecting">Connecting...</string>
+
+    <string name="cancel">Cancel</string>
+
+    <string name="detected_devices">Detected devices</string>
+    <string name="detect_error">Unable to detect devices</string>
+    <string name="retry_detect">Try again</string>
+
+    <string name="detected_device_pattern" translatable="false">%1$s (%2$s)</string>
+    <string name="searching_devices">Searching devices...</string>
+
+    <string name="connection_error_1">Connection failed. Try check the following:</string>
+    <string name="connection_error_2">1) IP address is correct</string>
+    <string name="connection_error_3">2) Monidroid service is running on your computer</string>
+    <string name="connection_error_4">Error message: %1$s</string>
+
+    <!-- Monitor page strings-->
+    <string name="title_activity_monitor" translatable="false">MonitorActivity</string>
+    <string name="init_connecting">Connecting...</string>
+    <string name="wait_connection">Wait for connection with host will succeed</string>
+
+    <string name="display_off">Display disabled</string>
+
+    <string name="connection_lost">Connection lost</string>
+    <string name="trying_restore_connection">We are trying to restore connection</string>
+    <string name="host_name">Host: %1$s</string>
+    <string name="unknown_host">unknown</string>
+</resources>

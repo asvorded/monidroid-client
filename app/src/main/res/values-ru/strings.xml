@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Main page strings -->
+    <string name="ip_address">IP адрес</string>
+    <string name="connect_button">Подключиться</string>
+    <string name="connecting">Соединение...</string>
+
+    <string name="cancel">Отмена</string>
+
+    <string name="detected_devices">Обнаруженные устройства</string>
+    <string name="detect_error">Не удалось обнаружить устройства</string>
+    <string name="retry_detect">Поробовать снова</string>
+
+    <string name="searching_devices">Поиск устройств...</string>
+
+    <string name="connection_error_1">Не удалось установить соединение. Попробуйте проверить следующее:</string>
+    <string name="connection_error_2">1) Указан корректный IP-адрес</string>
+    <string name="connection_error_3">2) На вашем компьютере запущена служба Monidroid</string>
+    <string name="connection_error_4">Текст ошибки: %1$s</string>
+
+    <!-- Monitor page strings-->
+    <string name="init_connecting">Соединение...</string>
+    <string name="wait_connection">Подождите, пока установится соединение с компьютером</string>
+
+    <string name="display_off">Монитор выключен</string>
+
+    <string name="connection_lost">Соединение потеряно</string>
+    <string name="trying_restore_connection">Мы пробуем восстановить соединение</string>
+    <string name="host_name">Компьютер: %1$s</string>
+    <string name="unknown_host">имя неизвестно</string>
+</resources>
