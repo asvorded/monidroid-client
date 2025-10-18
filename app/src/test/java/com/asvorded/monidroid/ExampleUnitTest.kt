@@ -1,4 +1,4 @@
-package com.example.myapplication
+package com.asvorded.monidroid
 
 import org.junit.Test
 

@@ -1,4 +1,4 @@
-package com.example.myapplication
+package com.asvorded.monidroid
 
 import android.content.Intent
 import android.os.Bundle
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -48,9 +47,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.myapplication.EchoClient.AutoDetectingOptions
-import com.example.myapplication.EchoClient.HostInfo
-import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
+import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.net.InetAddress
 

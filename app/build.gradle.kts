@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myapplication"
+    namespace = "com.asvorded.monidroid"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.myapplication"
+        applicationId = "com.asvorded.monidroid"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
