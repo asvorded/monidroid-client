@@ -47,8 +47,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
-import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.EchoClientKt.AutoDetectingOptions
+import com.asvorded.monidroid.EchoClientKt.HostInfo
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.net.InetAddress

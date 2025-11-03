@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+@Deprecated
 public class EchoClient {
 
     public static class HostInfo {
@@ -71,16 +72,6 @@ public class EchoClient {
         onFailed = failCallback;
 
         echoSendThread.start();
-        echoReceiveThread.start();
-    }
-
-    public void startEcho2(Runnable failCallback, Consumer<HostInfo> deviceDetectedCallback) throws IOException {
-        echoSocket = new DatagramSocket(MonidroidProtocol.MONITOR_PORT);
-        echoSocket.setBroadcast(true);
-
-        onDeviceDetected = deviceDetectedCallback;
-        onFailed = failCallback;
-
         echoReceiveThread.start();
     }
 
@@ -160,11 +151,6 @@ public class EchoClient {
     public void endEcho() {
         echoSendThread.interrupt();
         echoReceiveThread.interrupt();
-        echoSocket.close();
-    }
-
-    public void endEcho2() {
-        echoSendThread.interrupt();
         echoSocket.close();
     }
 }

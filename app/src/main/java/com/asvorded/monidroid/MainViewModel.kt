@@ -4,8 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
-import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.EchoClientKt.AutoDetectingOptions
+import com.asvorded.monidroid.EchoClientKt.HostInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.IOException
 import java.net.InetAddress
@@ -26,7 +26,7 @@ class MainViewModel : ViewModel() {
 
     var connectedEvent = MutableStateFlow(false)
 
-    private val echoClient = EchoClient()
+    private val echoClient = EchoClientKt()
     private val foundHostsSet: MutableSet<HostInfo> = mutableSetOf()
     private val synchronizedSet = Collections.synchronizedSet(foundHostsSet)
 
@@ -44,9 +44,8 @@ class MainViewModel : ViewModel() {
     fun startAutoDetecting() {
         try {
             echoClient.startEcho(
-                // failedCallback
                 {
-                    autoDetecting = AutoDetectingOptions.Error;
+                    autoDetecting = AutoDetectingOptions.Error
                 }
             ) { hostInfo ->
                 if (hostInfo != null) {
@@ -57,7 +56,7 @@ class MainViewModel : ViewModel() {
                 foundHosts = synchronizedSet.toList()
             }
             autoDetecting = AutoDetectingOptions.Enabled
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             autoDetecting = AutoDetectingOptions.Error
         }
     }
@@ -65,7 +64,7 @@ class MainViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
 
-        echoClient.endEcho()
+        echoClient.stopEcho()
         synchronizedSet.clear()
         foundHosts = listOf()
         autoDetecting = AutoDetectingOptions.Disabled

@@ -1,5 +1,6 @@
 package com.asvorded.monidroid;
 
+@Deprecated(forRemoval = true)
 public class MonidroidProtocol {
     public static String DEBUG_TAG = "Monidroid Client";
 
@@ -21,8 +22,11 @@ public class MonidroidProtocol {
      * ECHO Client message format: MDCLIENT_ECHO
      */
     public static String CLIENT_ECHO_WORD = "MDCLIENT_ECHO";
+
     /**
-     * ECHO Server message format: MDIDD_ECHO[model_length][model]
+     * ECHO Server message
+     * Sent when ECHO Client message is received
+     * Format: 'MDIDD_ECHO'model_length:int32LEmodel:string
      */
     public static String SERVER_ECHO_WORD = "MDIDD_ECHO";
 }
