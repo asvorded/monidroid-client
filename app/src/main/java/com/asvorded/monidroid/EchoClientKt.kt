@@ -1,6 +1,9 @@
 package com.asvorded.monidroid
 
 import android.util.Log
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -29,8 +32,12 @@ class EchoClientKt {
         Enabled, Error, Disabled
     }
 
-    private val echoSendThread: Thread = Thread { this.sendMain() }
-    private val echoReceiveThread: Thread = Thread { this.receiveMain() }
+    var started = false
+        get
+        private set
+    private lateinit var echoSendThread: Thread
+    private lateinit var echoReceiveThread: Thread
+    private val stateLock: Mutex = Mutex()
 
     private lateinit var echoSocket: DatagramSocket
 
@@ -48,18 +55,33 @@ class EchoClientKt {
         stopEcho()
     }
 
-    fun resumeEcho() {
-        echoSocket = DatagramSocket(MonidroidProtocolKt.MONITOR_PORT)
-        echoSocket.broadcast = true
+    fun resumeEcho() = runBlocking {
+        stateLock.withLock {
+            if (started) return@runBlocking
 
-        echoSendThread.start()
-        echoReceiveThread.start()
+            echoSocket = DatagramSocket(MonidroidProtocolKt.MONITOR_PORT)
+            echoSocket.broadcast = true
+
+            echoSendThread = Thread { sendMain() }
+            echoSendThread.start()
+
+            echoReceiveThread = Thread { receiveMain() }
+            echoReceiveThread.start()
+
+            started = true
+        }
     }
 
-    fun stopEcho() {
-        echoSendThread.interrupt()
-        echoReceiveThread.interrupt()
-        echoSocket.close()
+    fun stopEcho() = runBlocking {
+        stateLock.withLock {
+            if (!started) return@runBlocking
+
+            started = false
+            // now threads see updated `started`
+            echoSendThread.interrupt()
+            echoReceiveThread.interrupt()
+            echoSocket.close()
+        }
     }
 
     private fun sendMain() {
@@ -92,7 +114,7 @@ class EchoClientKt {
                 return
             } catch (_: IOException) {
                 sending = false
-                onFailed?.invoke()
+                if (started) onFailed?.invoke()
             }
         }
     }
@@ -126,7 +148,7 @@ class EchoClientKt {
                             // BUG: UTF-16 is only for Windows
                             // TODO: (Windows specific) Convert hostName to UTF-8 string
                             val nameBuf = data.copyOfRange(header.size + 4, dgram.length)
-                            val hostName = String(nameBuf, StandardCharsets.UTF_16LE)
+                            val hostName = String(nameBuf, StandardCharsets.UTF_8)
 
                             // Trigger event
                             val hostInfo = HostInfo(dgram.address, hostName)
@@ -134,9 +156,11 @@ class EchoClientKt {
                         }
                     }
                 }
+            } catch (_: InterruptedException) {
+                return
             } catch (_: IOException) {
                 accepting = false
-                onFailed?.invoke()
+                if (started) onFailed?.invoke()
             }
         }
     }
