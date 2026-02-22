@@ -82,6 +82,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        viewModel.onPauseEcho()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.onResumeEcho()
+    }
+
     private fun onConnected() {
         val intent = Intent(applicationContext, MonitorActivity::class.java)
         intent.putExtra("address", viewModel.getServerAddress())

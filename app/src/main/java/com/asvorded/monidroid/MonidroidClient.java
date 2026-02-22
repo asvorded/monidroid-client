@@ -146,9 +146,8 @@ public class MonidroidClient {
                             receiveNeedBytesCount(imageBuf);
 
                             // Convert buffer to image
-                            BitmapFactory.Options options = new BitmapFactory.Options();
                             Bitmap bitmap = BitmapFactory.decodeByteArray(
-                                    imageBuf, 0, imageSize, options
+                                imageBuf, 0, imageSize, new BitmapFactory.Options()
                             );
 
                             if (onNewFrame != null) {

@@ -61,6 +61,14 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun onPauseEcho() {
+        echoClient.pauseEcho()
+    }
+
+    fun onResumeEcho() {
+        echoClient.resumeEcho()
+    }
+
     override fun onCleared() {
         super.onCleared()
 

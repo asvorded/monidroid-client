@@ -7,9 +7,13 @@ package com.asvorded.monidroid
  *
  * Used types:
  * - **literal** - protocol's predefined string literal
- * - **string** - UTF-8 string. Length for strings is the length of the buffer, not characters count
- * - **int32(LE|BE)** - 32-bit integer with little-endian or big-endian byte order
+ * - **string** - UTF-16LE string.
+ * - **int** - 32-bit little-endian integer
  * - **bytes** - array of bytes
+ *
+ * Definitions:
+ * - **length of string** - count of characters **excluding** '\0'
+ * - **size of string** - size of the buffer of a string (**including** '\0')
  */
 object MonidroidProtocolKt {
     val DEBUG_TAG = "Monidroid Client"
@@ -23,11 +27,11 @@ object MonidroidProtocolKt {
      *
      * Format:
      * - **"WELCOME"**: literal
-     * - **client model length**: int32LE
+     * - **length of client model**: int
      * - **model**: string
-     * - **screen width**: int32LE
-     * - **screen height**: int32LE
-     * - **hertz rate**: int32LE
+     * - **screen width**: int
+     * - **screen height**: int
+     * - **hertz rate**: int
      */
     val WELCOME_WORD = "WELCOME"
 
@@ -38,7 +42,7 @@ object MonidroidProtocolKt {
      *
      * Format:
      * - **"FRAME"**: literal
-     * - **data size**: int32LE
+     * - **data size**: int
      * - **data**: bytes
      */
     val FRAME_WORD = "FRAME"
@@ -58,7 +62,7 @@ object MonidroidProtocolKt {
      *
      * Format:
      * - **"MDIDD_ECHO"**: literal
-     * - **hostname length**: int32LE
+     * - **length of hostname**: int
      * - **hostname**: string
      */
     val SERVER_ECHO_WORD = "MDIDD_ECHO"
