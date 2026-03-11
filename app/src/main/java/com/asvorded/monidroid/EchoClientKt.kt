@@ -55,34 +55,32 @@ class EchoClientKt {
         stopEcho()
     }
 
-    fun resumeEcho() = runBlocking {
-        stateLock.withLock {
-            if (started) return@runBlocking
+    fun resumeEcho() {
+        if (started) return
 
-            echoSocket = DatagramSocket(MonidroidProtocolKt.MONITOR_PORT)
-            echoSocket.broadcast = true
+        echoSocket = DatagramSocket(MonidroidProtocolKt.MONITOR_PORT)
+        echoSocket.broadcast = true
 
-            echoSendThread = Thread { sendMain() }
-            echoSendThread.start()
+        echoSendThread = Thread { sendMain() }
+        echoSendThread.start()
 
-            echoReceiveThread = Thread { receiveMain() }
-            echoReceiveThread.start()
+        echoReceiveThread = Thread { receiveMain() }
+        echoReceiveThread.start()
 
-            started = true
-        }
+        started = true
     }
 
-    fun stopEcho() = runBlocking {
-        stateLock.withLock {
-            if (!started) return@runBlocking
 
-            started = false
-            // now threads see updated `started`
-            echoSendThread.interrupt()
-            echoReceiveThread.interrupt()
-            echoSocket.close()
-        }
+    fun stopEcho() {
+        if (!started) return
+
+        started = false
+        // now threads see updated `started`
+        echoSendThread.interrupt()
+        echoReceiveThread.interrupt()
+        echoSocket.close()
     }
+
 
     private fun sendMain() {
         val sendBuf = MonidroidProtocolKt.CLIENT_ECHO_WORD.toByteArray(StandardCharsets.US_ASCII)
@@ -105,11 +103,7 @@ class EchoClientKt {
                         }
                     }
                 }
-                Log.d(
-                    MonidroidProtocolKt.DEBUG_TAG,
-                    "Successfully sent datagrams to all interfaces, waiting 5 seconds"
-                )
-                Thread.sleep(5000)
+                Thread.sleep(1000)
             } catch (_: InterruptedException) {
                 return
             } catch (_: IOException) {

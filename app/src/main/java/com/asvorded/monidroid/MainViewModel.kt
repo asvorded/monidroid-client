@@ -62,11 +62,11 @@ class MainViewModel : ViewModel() {
     }
 
     fun onPauseEcho() {
-        echoClient.pauseEcho()
+        if (echoClient.started) echoClient.pauseEcho()
     }
 
     fun onResumeEcho() {
-        echoClient.resumeEcho()
+        if (!echoClient.started) echoClient.resumeEcho()
     }
 
     override fun onCleared() {
