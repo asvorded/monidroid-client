@@ -180,7 +180,7 @@ public class MonidroidClient {
         bs.write(ByteBuffer
                 .allocate(4).order(ByteOrder.LITTLE_ENDIAN)
                 .putInt(model.length()).array());
-        bs.write(model.getBytes(StandardCharsets.UTF_16LE));
+        bs.write(model.getBytes(StandardCharsets.UTF_8));
 
         // screen sides and hertz
         bs.write(ByteBuffer
