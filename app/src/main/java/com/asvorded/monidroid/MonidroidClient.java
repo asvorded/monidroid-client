@@ -137,9 +137,7 @@ public class MonidroidClient {
                         receiveNeedBytesCount(sizeBuf);
                         int imageSize = ByteBuffer.wrap(sizeBuf).order(ByteOrder.LITTLE_ENDIAN).getInt();
 
-                        if (imageSize < 0) {
-                            onNewFrame.accept(null);
-                        } else if (imageSize > 0) {
+                        if (imageSize > 0) {
                             // Get image buffer
                             byte[] imageBuf = new byte[imageSize];
 
@@ -153,6 +151,8 @@ public class MonidroidClient {
                             if (onNewFrame != null) {
                                 onNewFrame.accept(bitmap);
                             }
+                        } else {
+                            onNewFrame.accept(null);
                         }
                     }
                 }

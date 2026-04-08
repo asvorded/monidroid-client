@@ -7,13 +7,12 @@ package com.asvorded.monidroid
  *
  * Used types:
  * - **literal** - protocol's predefined string literal
- * - **string** - UTF-16LE string.
+ * - **string** - UTF-8 string.
  * - **int** - 32-bit little-endian integer
  * - **bytes** - array of bytes
  *
  * Definitions:
  * - **length of string** - count of characters **excluding** '\0'
- * - **size of string** - size of the buffer of a string (**including** '\0')
  */
 object MonidroidProtocolKt {
     val DEBUG_TAG = "Monidroid Client"
@@ -46,6 +45,19 @@ object MonidroidProtocolKt {
      * - **data**: bytes
      */
     val FRAME_WORD = "FRAME"
+
+    /**
+     * **ERROR Server message**
+     *
+     * Sent when error in server occurred
+     *
+     * Format:
+     * - **"ERROR"**: literal
+     * - **code**: int
+     * - **length of message**: int
+     * - **message**: string
+     */
+    val ERROR_WORD = "ERROR"
 
     /**
      * **ECHO Client message**

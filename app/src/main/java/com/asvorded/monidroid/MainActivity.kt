@@ -102,19 +102,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainPage(
     modifier: Modifier = Modifier,
-    viewModel: MainViewModel = viewModel<MainViewModel>()
+    viewModel: MainViewModel = viewModel()
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = modifier.fillMaxSize()
     ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            fontSize = 48.sp,
-            textAlign = TextAlign.Center,
-            lineHeight = 48.sp
-        )
+        Header()
         Spacer(modifier = Modifier.padding(10.dp))
 
         ManualConnectionForm(
@@ -152,6 +147,27 @@ fun MainPage(
             onOkClick = {
                 viewModel.closeDialog()
             }
+        )
+    }
+}
+
+@Composable
+fun Header(modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        Text(
+            text = stringResource(R.string.app_name_1),
+            fontSize = 48.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 36.sp
+        )
+        Text(
+            text = stringResource(R.string.app_name_2),
+            fontSize = 36.sp,
+            textAlign = TextAlign.Center,
+    //            lineHeight = 48.sp
         )
     }
 }
@@ -365,15 +381,5 @@ fun ConnectionError(
     )
 @Composable
 fun GreetingPreview() {
-    MyApplicationTheme {
-        val viewModel = MainViewModel()
-        viewModel.autoDetecting = AutoDetectingOptions.Enabled
-        viewModel.foundHosts = listOf(
-            HostInfo(
-            InetAddress.getByName("192.168.1.4"),
-                "ADMIN-PC"
-        )
-        )
-        MainPage(viewModel = viewModel)
-    }
+
 }

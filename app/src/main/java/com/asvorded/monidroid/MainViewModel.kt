@@ -27,8 +27,7 @@ class MainViewModel : ViewModel() {
     var connectedEvent = MutableStateFlow(false)
 
     private val echoClient = EchoClientKt()
-    private val foundHostsSet: MutableSet<HostInfo> = mutableSetOf()
-    private val synchronizedSet = Collections.synchronizedSet(foundHostsSet)
+    private val foundHostsSet = Collections.synchronizedSet(mutableSetOf<HostInfo>())
 
     private lateinit var checkThread: Thread
 
@@ -43,18 +42,13 @@ class MainViewModel : ViewModel() {
     // Auto detecting functions
     fun startAutoDetecting() {
         try {
-            echoClient.startEcho(
-                {
-                    autoDetecting = AutoDetectingOptions.Error
-                }
-            ) { hostInfo ->
-                if (hostInfo != null) {
-                    synchronizedSet.add(hostInfo)
-                } else {
-                    synchronizedSet.clear()
-                }
-                foundHosts = synchronizedSet.toList()
+            echoClient.onFailed = {
+                autoDetecting = AutoDetectingOptions.Error
             }
+            echoClient.onDevicesDetected = { hosts ->
+                foundHosts = hosts.toList()
+            }
+            echoClient.start()
             autoDetecting = AutoDetectingOptions.Enabled
         } catch (_: IOException) {
             autoDetecting = AutoDetectingOptions.Error
@@ -62,18 +56,18 @@ class MainViewModel : ViewModel() {
     }
 
     fun onPauseEcho() {
-        if (echoClient.started) echoClient.pauseEcho()
+        if (echoClient.started) echoClient.pause()
     }
 
     fun onResumeEcho() {
-        if (!echoClient.started) echoClient.resumeEcho()
+        if (!echoClient.started) echoClient.resume()
     }
 
     override fun onCleared() {
         super.onCleared()
 
-        echoClient.stopEcho()
-        synchronizedSet.clear()
+        echoClient.stop()
+        foundHostsSet.clear()
         foundHosts = listOf()
         autoDetecting = AutoDetectingOptions.Disabled
     }

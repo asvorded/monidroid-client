@@ -1,9 +1,6 @@
 package com.asvorded.monidroid
 
-import android.util.Log
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -12,6 +9,7 @@ import java.net.NetworkInterface
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
+import java.util.Collections
 import java.util.Objects
 
 class EchoClientKt {
@@ -33,29 +31,30 @@ class EchoClientKt {
     }
 
     var started = false
-        get
+//        get
         private set
+
+    private val foundHosts = Collections.synchronizedSet(mutableSetOf<HostInfo>())
+
     private lateinit var echoSendThread: Thread
     private lateinit var echoReceiveThread: Thread
     private val stateLock: Mutex = Mutex()
 
     private lateinit var echoSocket: DatagramSocket
 
-    private var onFailed: (() -> Unit)? = null
-    private var onDeviceDetected: ((HostInfo?) -> Unit)? = null
+    var onFailed: (() -> Unit)? = null
+    var onDeviceDetected: ((HostInfo?) -> Unit)? = null
+    var onDevicesDetected: ((Set<HostInfo>) -> Unit)? = null
 
-    fun startEcho(failCallback: () -> Unit, deviceDetectedCallback: (HostInfo?) -> Unit) {
-        onDeviceDetected = deviceDetectedCallback
-        onFailed = failCallback
-
-        resumeEcho()
+    fun start() {
+        resume()
     }
 
-    fun pauseEcho() {
-        stopEcho()
+    fun pause() {
+        stop()
     }
 
-    fun resumeEcho() {
+    fun resume() {
         if (started) return
 
         echoSocket = DatagramSocket(MonidroidProtocolKt.MONITOR_PORT)
@@ -71,7 +70,7 @@ class EchoClientKt {
     }
 
 
-    fun stopEcho() {
+    fun stop() {
         if (!started) return
 
         started = false
@@ -85,11 +84,12 @@ class EchoClientKt {
     private fun sendMain() {
         val sendBuf = MonidroidProtocolKt.CLIENT_ECHO_WORD.toByteArray(StandardCharsets.US_ASCII)
 
-        var sending = true
-        while (sending) {
-            try {
-                onDeviceDetected?.invoke(null)
+        while (true) {
+            val saved = foundHosts.toSet()
+            foundHosts.clear()
 
+            try {
+                // send broadcast to all interfaces
                 for (ni in NetworkInterface.getNetworkInterfaces()) {
                     if (!ni.isUp || ni.isLoopback) continue
                     for (addr in ni.interfaceAddresses) {
@@ -104,11 +104,14 @@ class EchoClientKt {
                     }
                 }
                 Thread.sleep(1000)
+
+                // diff saved state and current
+                onDevicesDetected?.invoke(foundHosts intersect saved)
             } catch (_: InterruptedException) {
                 return
             } catch (_: IOException) {
-                sending = false
                 if (started) onFailed?.invoke()
+                break
             }
         }
     }
@@ -122,7 +125,7 @@ class EchoClientKt {
             try {
                 val dgram = DatagramPacket(buf, buf.size)
                 echoSocket.receive(dgram)
-                if (dgram.length >= header.size + 4) {
+                if (dgram.address != echoSocket.inetAddress && dgram.length >= header.size + 4) {
                     val data = dgram.data
 
                     // Check header
@@ -134,19 +137,14 @@ class EchoClientKt {
                             .order(ByteOrder.LITTLE_ENDIAN)
                             .getInt()
 
-                        // BUG: hostName must be in UTF-8 encoding
-                        // On Windows, hostName is presented as wchar_t array,
-                        // while on Linux as char array
                         if (header.size + 4 + len == dgram.length) {
-                            // Get host name
-                            // BUG: UTF-16 is only for Windows
-                            // TODO: (Windows specific) Convert hostName to UTF-8 string
                             val nameBuf = data.copyOfRange(header.size + 4, dgram.length)
                             val hostName = String(nameBuf, StandardCharsets.UTF_8)
 
-                            // Trigger event
                             val hostInfo = HostInfo(dgram.address, hostName)
-                            onDeviceDetected?.invoke(hostInfo)
+
+                            foundHosts += hostInfo
+//                            onDeviceDetected?.invoke(hostInfo)
                         }
                     }
                 }
