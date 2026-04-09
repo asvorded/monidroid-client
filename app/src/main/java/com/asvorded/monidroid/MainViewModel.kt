@@ -4,9 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.asvorded.monidroid.EchoClientKt.AutoDetectingOptions
 import com.asvorded.monidroid.EchoClientKt.HostInfo
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.net.InetAddress
 import java.util.Collections
@@ -24,16 +28,8 @@ class MainViewModel : ViewModel() {
 
     var connecting: Boolean by mutableStateOf(false)
 
-    var connectedEvent = MutableStateFlow(false)
-
     private val echoClient = EchoClientKt()
     private val foundHostsSet = Collections.synchronizedSet(mutableSetOf<HostInfo>())
-
-    private lateinit var checkThread: Thread
-
-    private lateinit var serverAddress: InetAddress
-
-    fun getServerAddress() = serverAddress
 
     init {
         startAutoDetecting()
@@ -72,42 +68,36 @@ class MainViewModel : ViewModel() {
         autoDetecting = AutoDetectingOptions.Disabled
     }
 
-    fun onConnectClick() {
-        if (address.isBlank())
-            return
-
+    fun onConnectionBegin() {
         connecting = true
-        checkThread = Thread {
-            try {
-                checkAddress(address)
-                connectedEvent.value = true
-            } catch (e: IOException) {
-                errorMessage = e.message
+    }
+
+    fun onManualConnectClick(successCallback: (HostInfo) -> Unit) {
+        try {
+            val serverAddress: InetAddress
+            runBlocking(Dispatchers.IO) {
+                serverAddress = InetAddress.getByName(address)
             }
-            connecting = false
+            successCallback(HostInfo(serverAddress, null))
+        } catch (e: Exception) {
+            errorMessage = e.localizedMessage
         }
-        checkThread.start()
     }
 
-    fun onDetectedConnectClick(device: HostInfo) {
-        serverAddress = device.address
-        connectedEvent.value = true
-    }
-
-    private fun checkAddress(address: String) {
-        serverAddress = InetAddress.getByName(address)
-    }
-
-    fun resetEvent() {
-        connectedEvent.value = false
-    }
-
-    fun cancelConnection() {
-        checkThread.interrupt()
+    fun onConnectionFailed(e: Exception) {
+        errorMessage = e.localizedMessage
         connecting = false
     }
 
-    fun closeDialog() {
+    fun onConnected() {
+        connecting = false
+    }
+
+    fun onCancelConnection() {
+        connecting = false
+    }
+
+    fun closeErrorDialog() {
         errorMessage = null
     }
 }

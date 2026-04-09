@@ -1,6 +1,10 @@
 <resources>
+    <!-- General strings -->
     <string name="app_name" translatable="false">Monidroid Client</string>
-    <string name="title_activity_main" translatable="false">Monidroid Client</string>
+    <string name="app_name_1" translatable="false">Monidroid</string>
+    <string name="app_name_2" translatable="false">Client</string>
+    <string name="app_activity_title" translatable="false">Monidroid Client</string>
+
 
     <!-- Main page strings -->
     <string name="ip_address">IP address</string>
@@ -18,7 +22,7 @@
 
     <string name="connection_error_1">Connection failed. Try check the following:</string>
     <string name="connection_error_2">1) IP address is correct</string>
-    <string name="connection_error_3">2) Monidroid service is running on your computer</string>
+    <string name="connection_error_3">2) Monidroid server is running on your computer</string>
     <string name="connection_error_4">Error message: %1$s</string>
 
     <!-- Monitor page strings-->
@@ -32,4 +36,15 @@
     <string name="trying_restore_connection">We are trying to restore connection</string>
     <string name="host_name">Host: %1$s</string>
     <string name="unknown_host">unknown</string>
+
+    <!-- Descriptions -->
+    <string name="service_desc">Controls Monidroid virtual monitor session</string>
+
+    <!-- Notifications -->
+    <string name="notification_title" translatable="false">Monidroid Client</string>
+    <string name="notification_channel_name" translatable="false">Monidroid Client</string>
+    <string name="notification_channel_desc">Displays current state of connection with Monidroid server</string>
+    <string name="notification_connecting">Connecting to %1$s...</string>
+    <string name="notification_connected_to">Connected to %1$s</string>
+    <string name="notification_button_disconnect">Disconnect</string>
 </resources>

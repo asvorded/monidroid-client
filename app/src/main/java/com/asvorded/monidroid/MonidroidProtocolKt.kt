@@ -15,6 +15,17 @@ package com.asvorded.monidroid
  * - **length of string** - count of characters **excluding** '\0'
  */
 object MonidroidProtocolKt {
+    enum class ErrorCode(val code: Int) {
+        MessageEncoded            (0),
+        NotIdentified             (1),
+        IncorrectMonitorOptions   (2),
+        MonitorConnectFail        (3),
+
+        InvalidClient             (10),
+
+        Unspecified               (1000),
+    }
+
     val DEBUG_TAG = "Monidroid Client"
 
     val MONITOR_PORT = 14765

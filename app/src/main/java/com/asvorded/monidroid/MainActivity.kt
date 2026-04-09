@@ -1,7 +1,11 @@
 package com.asvorded.monidroid
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
+import android.util.DisplayMetrics
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -45,15 +50,52 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asvorded.monidroid.EchoClientKt.AutoDetectingOptions
 import com.asvorded.monidroid.EchoClientKt.HostInfo
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
-import java.net.InetAddress
 
 class MainActivity : ComponentActivity() {
+    private var service: ClientService? = null
+    var isBound: Boolean = false
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            service = (binder as ClientService.ClientBinder).service
+            isBound = true
+
+            lifecycleScope.launch {
+                repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    service?.clientState?.collect { event ->
+                        when (event) {
+                            is ClientEvent.New -> {
+                                viewModel.onConnectionBegin()
+                            }
+                            is ClientEvent.ConnectionError -> {
+                                onConnectionFailed(event.e)
+                            }
+                            is ClientEvent.Connected -> {
+                                onConnected(event.hostInfo)
+                            }
+                            else -> Unit
+                        }
+                    }
+                }
+            }
+
+            val intent = Intent(applicationContext, ClientService::class.java)
+            ContextCompat.startForegroundService(applicationContext, intent)
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            service = null
+        }
+    }
 
     private val viewModel: MainViewModel by viewModels()
 
@@ -64,19 +106,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MyApplicationTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding: PaddingValues ->
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainPage(
                         viewModel = viewModel,
-                        modifier = Modifier.padding(innerPadding))
-                }
-            }
-        }
-
-        lifecycleScope.launch {
-            viewModel.connectedEvent.collect { connected ->
-                if (connected) {
-                    onConnected()
-                    viewModel.resetEvent()
+                        onConnectClick = { device ->
+                            onConnectClick(device)
+                        },
+                        onCancelClick = {
+                            cancelConnection()
+                            viewModel.onCancelConnection()
+                        },
+                        modifier = Modifier.padding(innerPadding)
+                    )
                 }
             }
         }
@@ -92,9 +133,54 @@ class MainActivity : ComponentActivity() {
         viewModel.onResumeEcho()
     }
 
-    private fun onConnected() {
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isBound) unbindService(connection)
+    }
+
+    private fun onConnectClick(device: HostInfo) {
+        val intent = Intent(applicationContext, ClientService::class.java).apply {
+            action = ClientService.ACTION_START
+
+            putExtra("hostName", device.hostName)
+            putExtra("address", device.address)
+        }
+
+        val displayMetrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(displayMetrics)
+        val width = displayMetrics.widthPixels
+        val height = displayMetrics.heightPixels
+
+        intent.putExtra("monitorMode", MonitorMode(width, height, 60))
+
+        // Rebind if we previously returned from monitor activity
+        if (isBound) {
+            unbindService(connection)
+        }
+        bindService(intent, connection, BIND_AUTO_CREATE)
+    }
+
+    private fun cancelConnection() {
+        service?.disconnect()
+        unbindService(connection)
+        isBound = false
+    }
+
+    private fun onConnectionFailed(e: Exception) {
+        viewModel.onConnectionFailed(e)
+        unbindService(connection)
+        isBound = false
+    }
+
+    private fun onConnected(hostInfo: HostInfo) {
+        // TODO: Keep reference to service in order to ensure that service
+        // TODO: is alive between activity changes
+//        unbindService(connection)
+
+        viewModel.onConnected()
+
         val intent = Intent(applicationContext, MonitorActivity::class.java)
-        intent.putExtra("address", viewModel.getServerAddress())
+        intent.putExtra("address", hostInfo.address)
         startActivity(intent)
     }
 }
@@ -102,6 +188,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainPage(
     modifier: Modifier = Modifier,
+    onConnectClick: (HostInfo) -> Unit,
+    onCancelClick: () -> Unit,
     viewModel: MainViewModel = viewModel()
 ) {
     Column(
@@ -116,10 +204,11 @@ fun MainPage(
             address = viewModel.address,
             onAddressChange = { value ->
                 viewModel.address = value
+            },
+            onConnectClick = {
+                viewModel.onManualConnectClick(onConnectClick)
             }
-        ) {
-            viewModel.onConnectClick()
-        }
+        )
         Spacer(modifier = Modifier.padding(10.dp))
 
         DetectedDevicesList(
@@ -128,24 +217,20 @@ fun MainPage(
             onRetryClick = {
                 viewModel.startAutoDetecting()
             },
-            onDeviceClick = { device ->
-                viewModel.onDetectedConnectClick(device)
-            }
+            onDeviceClick = onConnectClick
         )
     }
 
     if (viewModel.connecting) {
         ConnectionProgress(
-            onCancelClick = {
-                viewModel.cancelConnection()
-            }
+            onCancelClick = onCancelClick
         )
     }
     if (viewModel.errorMessage != null) {
         ConnectionError(
             errorMessage = viewModel.errorMessage.toString(),
             onOkClick = {
-                viewModel.closeDialog()
+                viewModel.closeErrorDialog()
             }
         )
     }
@@ -302,7 +387,7 @@ fun DetectedDeviceInfo(
         )
         Spacer(modifier = Modifier.width(5.dp))
         Text(text = stringResource(R.string.detected_device_pattern,
-            hostInfo.hostName, hostInfo.address.hostAddress!!),
+            hostInfo.hostName!!, hostInfo.address.hostAddress!!),
             )
     }
 }
@@ -358,9 +443,18 @@ fun ConnectionError(
             Column(
                 modifier = Modifier.padding(15.dp)
             ) {
+                Icon(
+                    painterResource(R.drawable.error),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .height(48.dp)
+                        .padding(bottom = 10.dp)
+                        .align(Alignment.CenterHorizontally)
+                )
                 Text(text = stringResource(R.string.connection_error_1))
                 Text(text = stringResource(R.string.connection_error_2))
                 Text(text = stringResource(R.string.connection_error_3))
+                Spacer(modifier = Modifier.height(15.dp))
                 Text(text = stringResource(R.string.connection_error_4, errorMessage))
                 TextButton(
                     onClick = onOkClick,
@@ -381,5 +475,5 @@ fun ConnectionError(
     )
 @Composable
 fun GreetingPreview() {
-
+    ConnectionError("ddddddd") { }
 }

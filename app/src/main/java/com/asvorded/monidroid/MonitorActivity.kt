@@ -1,8 +1,11 @@
 package com.asvorded.monidroid
 
+import android.content.ComponentName
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
 import android.os.Bundle
-import android.util.DisplayMetrics
+import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -30,13 +33,30 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.asvorded.monidroid.MonidroidClient.ConnectionStates
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 import java.net.InetAddress
 
 class MonitorActivity : ComponentActivity() {
-
     private val viewModel: MonitorViewModel by viewModels()
+
+    private var service: ClientService? = null
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            service = (binder as ClientService.ClientBinder).service
+
+            launchLifecycle()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            //
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,11 +67,6 @@ class MonitorActivity : ComponentActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         insetsController.hide(WindowInsetsCompat.Type.systemBars())
 
-        val displayMetrics = DisplayMetrics()
-        windowManager.defaultDisplay.getMetrics(displayMetrics)
-        val width = displayMetrics.widthPixels
-        val height = displayMetrics.heightPixels
-
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
@@ -59,8 +74,56 @@ class MonitorActivity : ComponentActivity() {
             }
         }
 
+        // Too low API level
+        @Suppress("DEPRECATION")
         val address = intent.getSerializableExtra("address") as InetAddress
-        viewModel.start(address, width, height, 60)
+        viewModel.hostname = address.hostAddress
+
+        val intent = Intent(applicationContext, ClientService::class.java).apply {
+            action = ClientService.ACTION_JOIN
+        }
+        bindService(intent, connection, BIND_AUTO_CREATE)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        service?.disconnect()
+        unbindService(connection)
+    }
+
+    private fun launchLifecycle() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                service?.clientState?.collect { state ->
+                    when (state) {
+                        is ClientEvent.New -> Unit
+                        is ClientEvent.Connected -> {
+                            viewModel.onConnected()
+                        }
+                        is ClientEvent.Streaming -> {
+                            viewModel.onConnected()
+                        }
+                        is ClientEvent.ConnectionLost -> {
+                            viewModel.onConnectionLost()
+                        }
+                        is ClientEvent.Error -> TODO()
+                        is ClientEvent.ConnectionError ->
+                            // It must never happen
+                            throw IllegalStateException("Monitor activity must never handle ConnectionError state")
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // TODO: Will be changed to streaming
+                service?.frameEvent?.collect { bitmap ->
+                    viewModel.onNewFrame(bitmap)
+                }
+            }
+        }
     }
 }
 
