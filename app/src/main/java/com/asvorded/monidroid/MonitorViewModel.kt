@@ -7,11 +7,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
-import com.asvorded.monidroid.MonidroidClient.ConnectionStates
-import java.net.InetAddress
 
 class MonitorViewModel : ViewModel() {
-    private var started: Boolean = false
+    enum class ConnectionStates {
+        Init, Connected, DisplayOff, Connecting;
+    }
 
     var connectionState: ConnectionStates by mutableStateOf(ConnectionStates.Init)
 

@@ -11,9 +11,11 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import com.asvorded.monidroid.MonidroidProtocolKt
+import com.asvorded.monidroid.EchoClientKt.HostInfo
+import com.asvorded.monidroid.MonidroidProtocolKt.ErrorCode
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -32,13 +34,13 @@ import java.nio.charset.StandardCharsets
 
 sealed class ClientEvent {
     class New : ClientEvent()
-    class Connected(val hostInfo: EchoClientKt.HostInfo) : ClientEvent()
+    class Connected(val hostInfo: HostInfo) : ClientEvent()
     data class ConnectionError(val e: IOException) : ClientEvent()
     class Streaming : ClientEvent()
-    class ConnectionLost(e: Exception) : ClientEvent()
-    data class Error(val code: MonidroidProtocolKt.ErrorCode, val message: String?) : ClientEvent() {
+    data class ConnectionLost(val e: Exception) : ClientEvent()
+    data class Error(val code: Int, val message: String? = null) : ClientEvent() {
         init {
-            if (code == MonidroidProtocolKt.ErrorCode.MessageEncoded)
+            if (code == ErrorCode.MessageEncoded.code)
                 require(message != null)
             else
                 require(message == null)
@@ -88,7 +90,9 @@ class ClientService : Service() {
     private var sessionThread = Thread(this::threadMain)
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-        createNotificationChannel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            createNotificationChannel()
+        }
 
         running = true
         sessionThread.start()
@@ -121,22 +125,20 @@ class ClientService : Service() {
         // Current version: do not control service lifecycle directly
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = getString(R.string.notification_channel_name)
-            val importance = NotificationManager.IMPORTANCE_LOW
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = getString(R.string.notification_channel_desc)
-            }
-            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+        val name = getString(R.string.notification_channel_name)
+        val importance = NotificationManager.IMPORTANCE_LOW
+        val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+            description = getString(R.string.notification_channel_desc)
         }
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun updateNotification(contentText: String) {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(getString(R.string.app_name))
             .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -154,17 +156,28 @@ class ClientService : Service() {
         )
     }
 
-    private fun threadMain() {
+    private fun tryConnect() {
         updateNotification(getString(
             R.string.notification_connecting,
             hostName ?: serverAddress.hostAddress))
 
+        clientSocket = Socket()
+        clientSocket.connect(
+            InetSocketAddress(serverAddress, MonidroidProtocolKt.MONITOR_PORT),
+            CONNECT_TIMEOUT
+        )
+    }
+
+    private fun onConnected() {
+        _state.value = ClientEvent.Connected(HostInfo(serverAddress, hostName))
+        updateNotification(getString(
+            R.string.notification_connected_to,
+            hostName ?: serverAddress.hostAddress))
+    }
+
+    private fun threadMain() {
         try {
-            clientSocket = Socket()
-            clientSocket.connect(
-                InetSocketAddress(serverAddress, MonidroidProtocolKt.MONITOR_PORT),
-                CONNECT_TIMEOUT
-            )
+            tryConnect()
         } catch (e: IOException) {
             if (!clientSocket.isClosed) {
                 _state.value = ClientEvent.ConnectionError(e)
@@ -175,33 +188,29 @@ class ClientService : Service() {
             return
         }
 
+        // Connection established
+        onConnected()
+
         while (running) {
-            _state.value = ClientEvent.Connected(EchoClientKt.HostInfo(serverAddress, hostName))
-
-            // Connection established
-            updateNotification(getString(
-                R.string.notification_connected_to,
-                hostName ?: serverAddress.hostAddress))
-
+            // Main loop
             communicationMain()
 
-            // If we are running and connection lost
-            if (running) {
-                updateNotification(getString(
-                    R.string.notification_connecting,
-                    hostName ?: serverAddress.hostAddress))
-
+            // Connection lost at this point
+            // or ERROR received (running == false)
+            var restoring = true
+            while (running && restoring) {
                 try {
-                    clientSocket = Socket()
-                    clientSocket.connect(
-                        InetSocketAddress(serverAddress, MonidroidProtocolKt.MONITOR_PORT),
-                        CONNECT_TIMEOUT
-                    )
+                    tryConnect()
+
+                    // Connection restored
+                    onConnected()
+
+                    restoring = false
                 } catch (_: IOException) {
-                    Log.w(MonidroidProtocolKt.DEBUG_TAG, "Connection failed, retrying in 5 seconds")
                     try {
                         Thread.sleep(5000)
-                    } catch (_: InterruptedException) { }
+                    } catch (_: InterruptedException) {
+                    }
                 }
             }
         }
@@ -219,36 +228,18 @@ class ClientService : Service() {
 
             val reader = DataInputStream(clientSocket.getInputStream())
 
-            // Receive display frames
-            val header = MonidroidProtocolKt.FRAME_WORD.toByteArray(StandardCharsets.US_ASCII)
             while (true) {
-                val headerBuf = ByteArray(header.size)
+                // TODO: For new protocol
+                val headerBuf = ByteArray(5)
                 reader.readFully(headerBuf)
-                if (headerBuf.contentEquals(header)) {
-                    // Get image size
-                    val sizeBuf = ByteArray(4)
-                    reader.readFully(sizeBuf)
-                    val imageSize = ByteBuffer.wrap(sizeBuf).order(ByteOrder.LITTLE_ENDIAN).getInt()
-
-                    if (imageSize > 0) {
-                        // Get image buffer
-                        val imageBuf = ByteArray(imageSize)
-
-                        reader.readFully(imageBuf)
-
-                        val bitmap = BitmapFactory.decodeByteArray(
-                            imageBuf, 0, imageSize, BitmapFactory.Options()
-                        )
-
-                        if (bitmap != null) {
-                            runBlocking {
-                                _event.emit(bitmap)
-                            }
-                        }
-                    } else {
-                        runBlocking {
-                            _event.emit(null)
-                        }
+                when (headerBuf.toString(StandardCharsets.US_ASCII)) {
+                    MonidroidProtocolKt.FRAME_WORD -> {
+                        receiveFrame(reader)
+                    }
+                    MonidroidProtocolKt.ERROR_WORD -> {
+                        receiveError(reader)
+                        running = false
+                        break
                     }
                 }
             }
@@ -279,22 +270,61 @@ class ClientService : Service() {
         // screen options
         bs.write(
             ByteBuffer
-                .allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                .putInt(monitorMode.width).array()
-        )
-        bs.write(
-            ByteBuffer
-                .allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                .putInt(monitorMode.height).array()
-        )
-        bs.write(
-            ByteBuffer
-                .allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                .putInt(monitorMode.refreshRate).array()
+                .allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(monitorMode.width)
+                .putInt(monitorMode.height)
+                .putInt(monitorMode.refreshRate)
+                .array()
         )
 
         // send
         val out = clientSocket.getOutputStream()
         out.write(bs.toByteArray())
+    }
+
+    private fun receiveFrame(reader: DataInputStream) {
+        val sizeBuf = ByteArray(4)
+        reader.readFully(sizeBuf)
+        val imageSize = ByteBuffer.wrap(sizeBuf).order(ByteOrder.LITTLE_ENDIAN).getInt()
+
+        if (imageSize > 0) {
+            // Get image buffer
+            val imageBuf = ByteArray(imageSize)
+
+            reader.readFully(imageBuf)
+
+            val bitmap = BitmapFactory.decodeByteArray(
+                imageBuf, 0, imageSize, BitmapFactory.Options()
+            )
+
+            if (bitmap != null) {
+                runBlocking {
+                    _event.emit(bitmap)
+                }
+            }
+        } else {
+            runBlocking {
+                _event.emit(null)
+            }
+        }
+    }
+
+    private fun receiveError(reader: DataInputStream) {
+        val intBuf = ByteArray(4)
+        reader.readFully(intBuf)
+        val code = ByteBuffer.wrap(intBuf).order(ByteOrder.LITTLE_ENDIAN)
+            .getInt()
+        var message: String? = null
+        if (code == ErrorCode.MessageEncoded.code) {
+            reader.readFully(intBuf)
+            val len = ByteBuffer.wrap(intBuf).order(ByteOrder.LITTLE_ENDIAN)
+                .getInt()
+
+            val strBuf = ByteArray(len)
+            reader.readFully(strBuf)
+            message = strBuf.toString(StandardCharsets.UTF_8)
+        }
+
+        _state.value = ClientEvent.Error(code, message)
     }
 }

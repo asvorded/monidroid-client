@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.function.Consumer;
 
+@Deprecated(forRemoval = true)
 public class MonidroidClient {
 
     public enum ConnectionStates {

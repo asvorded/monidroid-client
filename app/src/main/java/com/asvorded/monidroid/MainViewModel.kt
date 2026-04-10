@@ -1,5 +1,6 @@
 package com.asvorded.monidroid
 
+import android.os.Message
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -27,6 +28,8 @@ class MainViewModel : ViewModel() {
         private set
 
     var connecting: Boolean by mutableStateOf(false)
+
+    var code: Int? by mutableStateOf(null)
 
     private val echoClient = EchoClientKt()
     private val foundHostsSet = Collections.synchronizedSet(mutableSetOf<HostInfo>())
@@ -99,5 +102,13 @@ class MainViewModel : ViewModel() {
 
     fun closeErrorDialog() {
         errorMessage = null
+    }
+
+    fun closeSessionMessage() {
+        code = null
+    }
+
+    fun onSessionEndedWithError(code: Int, message: String?) {
+        this.code = code
     }
 }

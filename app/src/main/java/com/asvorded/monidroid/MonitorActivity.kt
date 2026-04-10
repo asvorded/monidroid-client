@@ -36,7 +36,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.asvorded.monidroid.MonidroidClient.ConnectionStates
+import com.asvorded.monidroid.MonitorViewModel.ConnectionStates
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.net.InetAddress
@@ -107,7 +107,14 @@ class MonitorActivity : ComponentActivity() {
                         is ClientEvent.ConnectionLost -> {
                             viewModel.onConnectionLost()
                         }
-                        is ClientEvent.Error -> TODO()
+                        is ClientEvent.Error -> {
+                            val intent = Intent().apply {
+                                putExtra("code", state.code)
+                                putExtra("message", state.message)
+                            }
+                            setResult(RESULT_OK, intent)
+                            finish()
+                        }
                         is ClientEvent.ConnectionError ->
                             // It must never happen
                             throw IllegalStateException("Monitor activity must never handle ConnectionError state")

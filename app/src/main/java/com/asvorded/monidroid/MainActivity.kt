@@ -9,6 +9,7 @@ import android.util.DisplayMetrics
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -99,11 +100,20 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
+    private val launcher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.data != null) {
+            val code = result.data!!.getIntExtra("code", -1)
+            val message = result.data!!.getStringExtra("message")
+            viewModel.onSessionEndedWithError(code, message)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
-
         setContent {
             MyApplicationTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -181,7 +191,8 @@ class MainActivity : ComponentActivity() {
 
         val intent = Intent(applicationContext, MonitorActivity::class.java)
         intent.putExtra("address", hostInfo.address)
-        startActivity(intent)
+
+        launcher.launch(intent)
     }
 }
 
@@ -231,6 +242,15 @@ fun MainPage(
             errorMessage = viewModel.errorMessage.toString(),
             onOkClick = {
                 viewModel.closeErrorDialog()
+            }
+        )
+    }
+    if (viewModel.code != null) {
+        SessionAbortedMessage(
+            code = viewModel.code!!,
+            message = "",
+            onOkClick = {
+                viewModel.closeSessionMessage()
             }
         )
     }
@@ -470,10 +490,46 @@ fun ConnectionError(
     }
 }
 
+@Composable
+fun SessionAbortedMessage(
+    code: Int,
+    message: String?,
+    onOkClick: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onOkClick
+    ) {
+        Card(
+            shape = RoundedCornerShape(15.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(15.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    stringResource(R.string.session_aborted),
+                    fontSize = 24.sp
+                )
+                Spacer(modifier = Modifier.height(15.dp))
+                // TODO: Make messages here
+                Text(
+                    stringResource(R.string.session_ended_error_code, code),
+                )
+                Spacer(modifier = Modifier.height(15.dp))
+                TextButton(
+                    onClick = onOkClick
+                ) {
+                    Text("OK")
+                }
+            }
+        }
+    }
+}
+
 @Preview(
     showBackground = true,
     )
 @Composable
 fun GreetingPreview() {
-    ConnectionError("ddddddd") { }
+    SessionAbortedMessage(1, "ddddddd") { }
 }

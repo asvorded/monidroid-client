@@ -4,7 +4,7 @@
     <!-- Main page strings -->
     <string name="ip_address">IP адрес</string>
     <string name="connect_button">Подключиться</string>
-    <string name="connecting">Соединение...</string>
+    <string name="connecting">Соединение…</string>
 
     <string name="cancel">Отмена</string>
 
@@ -12,15 +12,19 @@
     <string name="detect_error">Не удалось обнаружить устройства</string>
     <string name="retry_detect">Поробовать снова</string>
 
-    <string name="searching_devices">Поиск устройств...</string>
+    <string name="searching_devices">Поиск устройств…</string>
 
     <string name="connection_error_1">Не удалось установить соединение. Проверьте, что:</string>
     <string name="connection_error_2">1) Указан корректный IP-адрес</string>
     <string name="connection_error_3">2) На вашем компьютере запущена сервер Monidroid</string>
     <string name="connection_error_4">Текст ошибки: %1$s</string>
 
+    <string name="session_aborted">Сессия прервана</string>
+    <string name="session_ended_message">Сообщение: %1$s</string>
+    <string name="session_ended_error_code">Код ошибки: %1$d</string>
+
     <!-- Monitor page strings-->
-    <string name="init_connecting">Соединение...</string>
+    <string name="init_connecting">Соединение…</string>
     <string name="wait_connection">Подождите, пока установится соединение с компьютером</string>
 
     <string name="display_off">Монитор выключен</string>
@@ -32,8 +36,9 @@
 
     <!-- Descriptions -->
     <string name="service_desc">Управляет сеансом виртуального монитора Monidroid</string>
+    <string name="notification_channel_name">Состояние сеанса</string>
     <string name="notification_channel_desc">Отображет текущее состояние соединения с сервером Monidroid</string>
-    <string name="notification_connecting">Выполняется подключение к %1$s...</string>
+    <string name="notification_connecting">Выполняется подключение к %1$s…</string>
     <string name="notification_connected_to">Подключен к %1$s</string>
     <string name="notification_button_disconnect">Отключиться</string>
 </resources>
