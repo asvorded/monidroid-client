@@ -29,10 +29,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -40,7 +42,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -63,7 +67,9 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var service: ClientService? = null
-    var isBound: Boolean = false
+    var isBound = false
+
+    var isMonitorOpened = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -103,6 +109,7 @@ class MainActivity : ComponentActivity() {
     private val launcher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        isMonitorOpened = false
         if (result.data != null) {
             val code = result.data!!.getIntExtra("code", -1)
             val message = result.data!!.getStringExtra("message")
@@ -192,7 +199,10 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(applicationContext, MonitorActivity::class.java)
         intent.putExtra("address", hostInfo.address)
 
-        launcher.launch(intent)
+        if (!isMonitorOpened) {
+            isMonitorOpened = true
+            launcher.launch(intent)
+        }
     }
 }
 
@@ -210,7 +220,15 @@ fun MainPage(
     ) {
         Header()
         Spacer(modifier = Modifier.padding(10.dp))
-
+        DetectedDevicesList(
+            state = viewModel.autoDetecting,
+            devices = viewModel.foundHosts,
+            onRetryClick = {
+                viewModel.startAutoDetecting()
+            },
+            onDeviceClick = onConnectClick
+        )
+        Spacer(modifier = Modifier.padding(10.dp))
         ManualConnectionForm(
             address = viewModel.address,
             onAddressChange = { value ->
@@ -222,14 +240,6 @@ fun MainPage(
         )
         Spacer(modifier = Modifier.padding(10.dp))
 
-        DetectedDevicesList(
-            state = viewModel.autoDetecting,
-            devices = viewModel.foundHosts,
-            onRetryClick = {
-                viewModel.startAutoDetecting()
-            },
-            onDeviceClick = onConnectClick
-        )
     }
 
     if (viewModel.connecting) {
@@ -283,15 +293,38 @@ fun ManualConnectionForm(
     onAddressChange: (String) -> Unit,
     onConnectClick: () -> Unit
 ) {
-    IPAddressTextField(
-        value = address,
-        onValueChange = onAddressChange
-    )
-    Spacer(modifier = Modifier.padding(5.dp))
-    Button(
-        onClick = onConnectClick
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 35.dp)
     ) {
-        Text(stringResource(R.string.connect_button))
+        IPAddressTextField(
+            value = address,
+            onValueChange = onAddressChange
+        )
+        Spacer(modifier = Modifier.padding(5.dp))
+        Row(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedButton(
+                onClick = onConnectClick,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(stringResource(R.string.connect_button))
+            }
+            Spacer(modifier = Modifier.padding( horizontal = 5.dp))
+            OutlinedButton(
+                onClick = {  },
+                modifier = Modifier.weight(1f)
+            ) {
+                Image(
+                    painterResource(R.drawable.usb),
+                    contentDescription = "USB",
+                    modifier = Modifier.height(24.dp).padding(end = 8.dp)
+                )
+                Text(stringResource(R.string.connect_usb))
+            }
+        }
     }
 }
 
@@ -330,15 +363,20 @@ fun DetectedDevicesList(
     onDeviceClick: (HostInfo) -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
             .height(250.dp)
             .padding(10.dp)
-            .background(Color(235, 235, 253, 255))
+            .background(
+                Color(235, 235, 253, 255), RoundedCornerShape(10.dp)
+            )
+            .clip(RoundedCornerShape(10.dp))
     ) {
         Text(
             text = stringResource(R.string.detected_devices),
-            modifier = Modifier.fillMaxWidth()
-                .background(colorResource(R.color.purple_200))
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(198, 198, 252, 255))
                 .padding(start = 6.dp, top = 3.dp, bottom = 3.dp),
         )
         when (state) {
@@ -394,9 +432,14 @@ fun DetectedDeviceInfo(
     onDeviceClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier.padding(2.dp)
-            .height(45.dp).fillMaxWidth()
-            .background(Color(145, 145, 145, 44))
+        modifier = Modifier
+            .padding(2.dp)
+            .height(45.dp)
+            .fillMaxWidth()
+            .background(
+                Color(145, 145, 145, 44),
+                shape = RoundedCornerShape(10.dp)
+            )
             .clickable(onClick = onDeviceClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -407,7 +450,7 @@ fun DetectedDeviceInfo(
         )
         Spacer(modifier = Modifier.width(5.dp))
         Text(text = stringResource(R.string.detected_device_pattern,
-            hostInfo.hostName!!, hostInfo.address.hostAddress!!),
+            hostInfo.hostName!!, hostInfo.address.hostAddress),
             )
     }
 }
@@ -429,7 +472,7 @@ fun ConnectionProgress(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CircularProgressIndicator()
-                    Spacer(modifier = Modifier.width(50.dp))
+                    Spacer(modifier = Modifier.width(40.dp))
                     Text(stringResource(R.string.connecting))
                 }
                 Spacer(modifier = Modifier.height(30.dp))
@@ -461,7 +504,7 @@ fun ConnectionError(
             shape = RoundedCornerShape(15.dp)
         ) {
             Column(
-                modifier = Modifier.padding(15.dp)
+                modifier = Modifier.padding(25.dp)
             ) {
                 Icon(
                     painterResource(R.drawable.error),
@@ -503,7 +546,7 @@ fun SessionAbortedMessage(
             shape = RoundedCornerShape(15.dp)
         ) {
             Column(
-                modifier = Modifier.padding(15.dp),
+                modifier = Modifier.padding(25.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -531,5 +574,5 @@ fun SessionAbortedMessage(
     )
 @Composable
 fun GreetingPreview() {
-    SessionAbortedMessage(1, "ddddddd") { }
+    SessionAbortedMessage(0, null) { }
 }

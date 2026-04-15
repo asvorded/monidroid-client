@@ -4,6 +4,7 @@
     <!-- Main page strings -->
     <string name="ip_address">IP адрес</string>
     <string name="connect_button">Подключиться</string>
+    <string name="connect_usb">USB</string>
     <string name="connecting">Соединение…</string>
 
     <string name="cancel">Отмена</string>

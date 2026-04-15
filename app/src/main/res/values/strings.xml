@@ -9,6 +9,7 @@
     <!-- Main page strings -->
     <string name="ip_address">IP address</string>
     <string name="connect_button">Connect</string>
+    <string name="connect_usb">USB</string>
     <string name="connecting">Connecting…</string>
 
     <string name="cancel">Cancel</string>
