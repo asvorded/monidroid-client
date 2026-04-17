@@ -95,19 +95,16 @@ class MonitorActivity : ComponentActivity() {
     private fun launchLifecycle() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                service?.clientState?.collect { state ->
+                service?.state?.collect { state ->
                     when (state) {
-                        is ClientEvent.New -> Unit
-                        is ClientEvent.Connected -> {
+                        is ConnectionState.Initialized -> Unit
+                        is ConnectionState.Streaming -> {
                             viewModel.onConnected()
                         }
-                        is ClientEvent.Streaming -> {
-                            viewModel.onConnected()
-                        }
-                        is ClientEvent.ConnectionLost -> {
+                        is ConnectionState.ConnectionLost -> {
                             viewModel.onConnectionLost()
                         }
-                        is ClientEvent.Error -> {
+                        is ConnectionState.ServerError -> {
                             val intent = Intent().apply {
                                 putExtra("code", state.code)
                                 putExtra("message", state.message)
@@ -115,9 +112,6 @@ class MonitorActivity : ComponentActivity() {
                             setResult(RESULT_OK, intent)
                             finish()
                         }
-                        is ClientEvent.ConnectionError ->
-                            // It must never happen
-                            throw IllegalStateException("Monitor activity must never handle ConnectionError state")
                     }
                 }
             }

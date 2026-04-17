@@ -31,14 +31,20 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
-sealed class ClientEvent {
-    class New : ClientEvent()
-    class Connected(val hostInfo: HostInfo) : ClientEvent()
-    data class ConnectionError(val e: IOException) : ClientEvent()
-    class Streaming : ClientEvent()
-    data class ConnectionLost(val e: Exception) : ClientEvent()
-    data class Error(val code: Int, val message: String? = null) : ClientEvent() {
+sealed class FirstConnectionState {
+    class Connecting : FirstConnectionState()
+    data class Error(val e: IOException) : FirstConnectionState()
+    data class Connected(val hostInfo: HostInfo, val at: TimeMark) : FirstConnectionState()
+}
+
+sealed class ConnectionState {
+    class Initialized : ConnectionState()
+    class Streaming : ConnectionState()
+    data class ConnectionLost(val e: IOException) : ConnectionState()
+    data class ServerError(val code: Int, val message: String? = null) : ConnectionState() {
         init {
             if (code == ErrorCode.MessageEncoded.code)
                 require(message != null)
@@ -70,17 +76,20 @@ class ClientService : Service() {
 
     inner class ClientBinder : Binder() {
         val service: ClientService = this@ClientService
+
+        val _state = MutableStateFlow<FirstConnectionState>(
+            FirstConnectionState.Connecting())
+        val state = _state.asStateFlow()
     }
 
-    private val _state = MutableStateFlow<ClientEvent>(ClientEvent.New())
-    val clientState = _state.asStateFlow()
+
+    private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Initialized())
+    val state = _state.asStateFlow()
 
     private val _event = MutableSharedFlow<Bitmap?>()
     val frameEvent = _event.asSharedFlow()
 
-    private lateinit var serverAddress: InetAddress
-    private var hostName: String? = null
-
+    private lateinit var hostInfo: HostInfo
     private lateinit var monitorMode: MonitorMode
 
     private var binder: ClientBinder = ClientBinder()
@@ -102,8 +111,10 @@ class ClientService : Service() {
 
     override fun onBind(intent: Intent): IBinder {
         if (intent.action == ACTION_START) {
-            serverAddress = intent.getSerializableExtra("address") as InetAddress
-            hostName = intent.getStringExtra("hostName")
+            val serverAddress = intent.getSerializableExtra("address") as InetAddress
+            val hostName = intent.getStringExtra("hostName")
+            hostInfo = HostInfo(serverAddress, hostName)
+
             monitorMode = intent.getSerializableExtra("monitorMode") as MonitorMode
         }
 
@@ -119,7 +130,8 @@ class ClientService : Service() {
         running = false
         try {
             sessionThread.interrupt()
-            clientSocket.close()
+            clientSocket.shutdownInput()
+            clientSocket.shutdownOutput()
         } catch (_: Exception) { }
 
         // Current version: do not control service lifecycle directly
@@ -159,20 +171,13 @@ class ClientService : Service() {
     private fun tryConnect() {
         updateNotification(getString(
             R.string.notification_connecting,
-            hostName ?: serverAddress.hostAddress))
+            hostInfo.hostName ?: hostInfo.address.hostAddress))
 
         clientSocket = Socket()
         clientSocket.connect(
-            InetSocketAddress(serverAddress, MonidroidProtocolKt.MONITOR_PORT),
+            InetSocketAddress(hostInfo.address, MonidroidProtocolKt.MONITOR_PORT),
             CONNECT_TIMEOUT
         )
-    }
-
-    private fun onConnected() {
-        _state.value = ClientEvent.Connected(HostInfo(serverAddress, hostName))
-        updateNotification(getString(
-            R.string.notification_connected_to,
-            hostName ?: serverAddress.hostAddress))
     }
 
     private fun threadMain() {
@@ -180,7 +185,7 @@ class ClientService : Service() {
             tryConnect()
         } catch (e: IOException) {
             if (!clientSocket.isClosed) {
-                _state.value = ClientEvent.ConnectionError(e)
+                binder._state.value = FirstConnectionState.Error(e)
             }
 
             // First-try connect failed, stop service
@@ -188,30 +193,31 @@ class ClientService : Service() {
             return
         }
 
-        // Connection established
-        onConnected()
+        // First-time connection established
+        binder._state.value = FirstConnectionState.Connected(
+            hostInfo, TimeSource.Monotonic.markNow())
+        updateNotification(getString(
+            R.string.notification_connected_to,
+            hostInfo.hostName ?: hostInfo.address.hostAddress))
 
         while (running) {
             // Main loop
             communicationMain()
 
-            // Connection lost at this point
-            // or ERROR received (running == false)
+            // 1) Connection lost at this point
+            // 2) ERROR received (running == false)
             var restoring = true
             while (running && restoring) {
                 try {
                     tryConnect()
 
                     // Connection restored
-                    onConnected()
+                    updateNotification(getString(
+                        R.string.notification_connected_to,
+                        hostInfo.hostName ?: hostInfo.address.hostAddress))
 
                     restoring = false
-                } catch (_: IOException) {
-                    try {
-                        Thread.sleep(5000)
-                    } catch (_: InterruptedException) {
-                    }
-                }
+                } catch (_: IOException) { }
             }
         }
 
@@ -224,7 +230,7 @@ class ClientService : Service() {
             // Send WELCOME message to identify device
             sendWelcome()
 
-            _state.value = ClientEvent.Streaming()
+            _state.value = ConnectionState.Streaming()
 
             val reader = DataInputStream(clientSocket.getInputStream())
 
@@ -236,6 +242,7 @@ class ClientService : Service() {
                     MonidroidProtocolKt.FRAME_WORD -> {
                         receiveFrame(reader)
                     }
+
                     MonidroidProtocolKt.ERROR_WORD -> {
                         receiveError(reader)
                         running = false
@@ -244,7 +251,7 @@ class ClientService : Service() {
                 }
             }
         } catch (e: IOException) {
-            _state.value = ClientEvent.ConnectionLost(e)
+            _state.value = ConnectionState.ConnectionLost(e)
             try {
                 clientSocket.close()
             } catch (_: IOException) { }
@@ -325,6 +332,6 @@ class ClientService : Service() {
             message = strBuf.toString(StandardCharsets.UTF_8)
         }
 
-        _state.value = ClientEvent.Error(code, message)
+        _state.value = ConnectionState.ServerError(code, message)
     }
 }

@@ -29,7 +29,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,8 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -76,24 +73,7 @@ class MainActivity : ComponentActivity() {
             service = (binder as ClientService.ClientBinder).service
             isBound = true
 
-            lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    service?.clientState?.collect { event ->
-                        when (event) {
-                            is ClientEvent.New -> {
-                                viewModel.onConnectionBegin()
-                            }
-                            is ClientEvent.ConnectionError -> {
-                                onConnectionFailed(event.e)
-                            }
-                            is ClientEvent.Connected -> {
-                                onConnected(event.hostInfo)
-                            }
-                            else -> Unit
-                        }
-                    }
-                }
-            }
+            launchLifecycle(binder)
 
             val intent = Intent(applicationContext, ClientService::class.java)
             ContextCompat.startForegroundService(applicationContext, intent)
@@ -110,6 +90,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         isMonitorOpened = false
+        unbind()
         if (result.data != null) {
             val code = result.data!!.getIntExtra("code", -1)
             val message = result.data!!.getStringExtra("message")
@@ -171,9 +152,7 @@ class MainActivity : ComponentActivity() {
         intent.putExtra("monitorMode", MonitorMode(width, height, 60))
 
         // Rebind if we previously returned from monitor activity
-        if (isBound) {
-            unbindService(connection)
-        }
+        unbind()
         bindService(intent, connection, BIND_AUTO_CREATE)
     }
 
@@ -183,25 +162,43 @@ class MainActivity : ComponentActivity() {
         isBound = false
     }
 
-    private fun onConnectionFailed(e: Exception) {
-        viewModel.onConnectionFailed(e)
-        unbindService(connection)
-        isBound = false
+    private fun launchLifecycle(binder: ClientService.ClientBinder) {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                binder.state.collect { event ->
+                    when (event) {
+                        is FirstConnectionState.Connecting -> {
+                            viewModel.onConnectionBegin()
+                        }
+                        is FirstConnectionState.Error -> {
+                            viewModel.onConnectionFailed(event.e)
+                            unbind()
+                        }
+                        is FirstConnectionState.Connected -> {
+                            // TODO: Keep reference to service in order to ensure that service
+                            // TODO: is alive between activity changes
+//                            unbindService(connection)
+
+                            viewModel.onConnected()
+
+                            val intent = Intent(applicationContext, MonitorActivity::class.java)
+                            intent.putExtra("address", event.hostInfo.address)
+
+                            if (!isMonitorOpened) {
+                                isMonitorOpened = true
+                                launcher.launch(intent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    private fun onConnected(hostInfo: HostInfo) {
-        // TODO: Keep reference to service in order to ensure that service
-        // TODO: is alive between activity changes
-//        unbindService(connection)
-
-        viewModel.onConnected()
-
-        val intent = Intent(applicationContext, MonitorActivity::class.java)
-        intent.putExtra("address", hostInfo.address)
-
-        if (!isMonitorOpened) {
-            isMonitorOpened = true
-            launcher.launch(intent)
+    private fun unbind() {
+        if (isBound) {
+            unbindService(connection)
+            isBound = false
         }
     }
 }
