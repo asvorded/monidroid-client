@@ -1,16 +1,12 @@
 package com.asvorded.monidroid
 
-import android.os.Message
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.asvorded.monidroid.EchoClientKt.AutoDetectingOptions
-import com.asvorded.monidroid.EchoClientKt.HostInfo
+import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
+import com.asvorded.monidroid.EchoClient.HostInfo
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.net.InetAddress
@@ -31,7 +27,7 @@ class MainViewModel : ViewModel() {
 
     var code: Int? by mutableStateOf(null)
 
-    private val echoClient = EchoClientKt()
+    private val echoClient = EchoClient()
     private val foundHostsSet = Collections.synchronizedSet(mutableSetOf<HostInfo>())
 
     init {

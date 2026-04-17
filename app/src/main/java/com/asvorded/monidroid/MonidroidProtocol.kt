@@ -1,32 +1,92 @@
-package com.asvorded.monidroid;
+package com.asvorded.monidroid
 
-@Deprecated(forRemoval = true)
-public class MonidroidProtocol {
-    public static String DEBUG_TAG = "Monidroid Client";
+/**
+ * Describes Monidroid protocol
+ *
+ * Formats describe sequences of elements which make up a single byte-array message
+ *
+ * Used types:
+ * - **literal** - protocol's predefined string literal
+ * - **string** - UTF-8 string.
+ * - **int** - 32-bit little-endian integer
+ * - **bytes** - array of bytes
+ *
+ * Definitions:
+ * - **length of string** - count of characters **excluding** '\0'
+ */
+object MonidroidProtocol {
+    enum class ErrorCode(val code: Int) {
+        MessageEncoded            (0),
 
-    public static int MONITOR_PORT = 14765;
+        NotIdentified             (1),
+        IncorrectMonitorOptions   (2),
+        InvalidClient             (3),
+
+        DisconnectedByServer      (10),
+        MonitorConnectFail        (11),
+        TooManyFails              (12),
+
+        Unspecified               (100),
+    }
+
+    const val DEBUG_TAG = "Monidroid Client"
+
+    const val PROTOCOL_PORT = 14770
+
+    const val WORD_LEN = 5
 
     /**
-    * WELCOME
-    * Message format: WELCOME[model_length][model][screen_sides][hertz]
-    */
-    public static String WELCOME_WORD = "WELCOME";
-
-    /**
-     * FRAME
-     * Message format: FRAME[size][data]
+     * **WELCOME Client message**
+     *
+     * Sent when connection with a server is establishing
+     *
+     * Format: <client model length(int)><model(string)><screen width(int)>
+     *     <screen height(int)><refresh rate(int)>
      */
-    public static String FRAME_WORD = "FRAME";
+    const val WELCOME_WORD = "CWLCM"
 
     /**
-     * ECHO Client message format: MDCLIENT_ECHO
+     * ** STREAM Server message
+     *
+     * Sent when server enables streaming instead of sending full frames
+     *
+     * Format: TODO: make format
      */
-    public static String CLIENT_ECHO_WORD = "MDCLIENT_ECHO";
+    const val SV_STREAM_WORD = "SSTRM"
 
     /**
-     * ECHO Server message
-     * Sent when ECHO Client message is received
-     * Format: 'MDIDD_ECHO'model_length:int32LEmodel:string
+     * **FRAME Server message**
+     *
+     * Sent when the next frame is ready to display
+     *
+     * Format: <data length(int)><data(byte[])>
      */
-    public static String SERVER_ECHO_WORD = "MDIDD_ECHO";
+    const val SV_FRAME_WORD = "SFRME"
+
+    /**
+     * **ERROR Server message**
+     *
+     * Sent when error in server occurred
+     *
+     * Format: <code(int)><message length(int)><message(string)>
+     */
+    const val SV_ERROR_WORD = "SERRC"
+
+    /**
+     * **ECHO Client message**
+     *
+     * Format: none
+     */
+    const val ECHO_WORD = "CECHO"
+
+    /**
+     * **ECHO Server message**
+     *
+     * Format: <hostname length(int)><hostname(string)>
+     */
+    const val SV_ECHO_WORD = "SECHO"
+
+    object Extensions {
+
+    }
 }

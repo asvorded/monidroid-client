@@ -57,8 +57,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.asvorded.monidroid.EchoClientKt.AutoDetectingOptions
-import com.asvorded.monidroid.EchoClientKt.HostInfo
+import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
+import com.asvorded.monidroid.EchoClient.HostInfo
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 
@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
             service = (binder as ClientService.ClientBinder).service
             isBound = true
 
-            launchLifecycle(binder)
+            launchLifecycle()
 
             val intent = Intent(applicationContext, ClientService::class.java)
             ContextCompat.startForegroundService(applicationContext, intent)
@@ -158,14 +158,13 @@ class MainActivity : ComponentActivity() {
 
     private fun cancelConnection() {
         service?.disconnect()
-        unbindService(connection)
-        isBound = false
+        unbind()
     }
 
-    private fun launchLifecycle(binder: ClientService.ClientBinder) {
+    private fun launchLifecycle() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                binder.state.collect { event ->
+                service?.stateFirst?.collect { event ->
                     when (event) {
                         is FirstConnectionState.Connecting -> {
                             viewModel.onConnectionBegin()
@@ -198,6 +197,7 @@ class MainActivity : ComponentActivity() {
     private fun unbind() {
         if (isBound) {
             unbindService(connection)
+            service = null
             isBound = false
         }
     }

@@ -14,8 +14,8 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import com.asvorded.monidroid.EchoClientKt.HostInfo
-import com.asvorded.monidroid.MonidroidProtocolKt.ErrorCode
+import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.MonidroidProtocol.ErrorCode
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -76,12 +76,11 @@ class ClientService : Service() {
 
     inner class ClientBinder : Binder() {
         val service: ClientService = this@ClientService
-
-        val _state = MutableStateFlow<FirstConnectionState>(
-            FirstConnectionState.Connecting())
-        val state = _state.asStateFlow()
     }
 
+    val _stateFirst = MutableStateFlow<FirstConnectionState>(
+        FirstConnectionState.Connecting())
+    val stateFirst = _stateFirst.asStateFlow()
 
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Initialized())
     val state = _state.asStateFlow()
@@ -121,9 +120,14 @@ class ClientService : Service() {
         return binder
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(MonidroidProtocol.DEBUG_TAG, String.format("(Debug) %s created", this))
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(MonidroidProtocolKt.DEBUG_TAG, "(For debug only) ###   Service destroyed   ###")
+        Log.d(MonidroidProtocol.DEBUG_TAG, String.format("(Debug) %s destroyed", this))
     }
 
     fun disconnect() {
@@ -132,7 +136,9 @@ class ClientService : Service() {
             sessionThread.interrupt()
             clientSocket.shutdownInput()
             clientSocket.shutdownOutput()
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+            clientSocket.close()
+        }
 
         // Current version: do not control service lifecycle directly
     }
@@ -175,7 +181,7 @@ class ClientService : Service() {
 
         clientSocket = Socket()
         clientSocket.connect(
-            InetSocketAddress(hostInfo.address, MonidroidProtocolKt.MONITOR_PORT),
+            InetSocketAddress(hostInfo.address, MonidroidProtocol.PROTOCOL_PORT),
             CONNECT_TIMEOUT
         )
     }
@@ -184,8 +190,10 @@ class ClientService : Service() {
         try {
             tryConnect()
         } catch (e: IOException) {
+            // Only connection errors are need to show
             if (!clientSocket.isClosed) {
-                binder._state.value = FirstConnectionState.Error(e)
+                _stateFirst.value = FirstConnectionState.Error(e)
+                clientSocket.close()
             }
 
             // First-try connect failed, stop service
@@ -194,7 +202,7 @@ class ClientService : Service() {
         }
 
         // First-time connection established
-        binder._state.value = FirstConnectionState.Connected(
+        _stateFirst.value = FirstConnectionState.Connected(
             hostInfo, TimeSource.Monotonic.markNow())
         updateNotification(getString(
             R.string.notification_connected_to,
@@ -217,7 +225,9 @@ class ClientService : Service() {
                         hostInfo.hostName ?: hostInfo.address.hostAddress))
 
                     restoring = false
-                } catch (_: IOException) { }
+                } catch (_: IOException) {
+                    clientSocket.close()
+                }
             }
         }
 
@@ -236,14 +246,14 @@ class ClientService : Service() {
 
             while (true) {
                 // TODO: For new protocol
-                val headerBuf = ByteArray(5)
+                val headerBuf = ByteArray(MonidroidProtocol.WORD_LEN)
                 reader.readFully(headerBuf)
                 when (headerBuf.toString(StandardCharsets.US_ASCII)) {
-                    MonidroidProtocolKt.FRAME_WORD -> {
+                    MonidroidProtocol.SV_FRAME_WORD -> {
                         receiveFrame(reader)
                     }
 
-                    MonidroidProtocolKt.ERROR_WORD -> {
+                    MonidroidProtocol.SV_ERROR_WORD -> {
                         receiveError(reader)
                         running = false
                         break
@@ -252,9 +262,7 @@ class ClientService : Service() {
             }
         } catch (e: IOException) {
             _state.value = ConnectionState.ConnectionLost(e)
-            try {
-                clientSocket.close()
-            } catch (_: IOException) { }
+            clientSocket.close()
         }
     }
 
@@ -262,7 +270,7 @@ class ClientService : Service() {
         val bs = ByteArrayOutputStream()
 
         // WELCOME
-        val word = MonidroidProtocolKt.WELCOME_WORD.toByteArray(StandardCharsets.US_ASCII)
+        val word = MonidroidProtocol.WELCOME_WORD.toByteArray(StandardCharsets.US_ASCII)
         bs.write(word)
 
         // model
