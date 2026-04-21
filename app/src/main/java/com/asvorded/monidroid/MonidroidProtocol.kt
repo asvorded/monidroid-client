@@ -82,9 +82,36 @@ object MonidroidProtocol {
     /**
      * **ECHO Server message**
      *
-     * Format: <hostname length(int)><hostname(string)>
+     * Format: <3-letter OS ID(string)><hostname length(int)><hostname(string)>
      */
     const val SV_ECHO_WORD = "SECHO"
+    const val OS_ID_LEN = 3
+
+    enum class OsId(val id: String) {
+        UNKNOWN       ("UNK"),
+
+        WINDOWS       ("WIN"),
+
+        GENERIC_LINUX ("GNU"),
+        UBUNTU        ("UBU"),
+        KUBUNTU       ("KBU"),
+        XUBUNTU       ("XBU"),
+        LUBUNTU       ("LBU"),
+        DEBIAN        ("DEB"),
+        ZORIN         ("ZOR"),
+        POP_OS        ("POP"),
+        ARCH_LINUX    ("ARC"),
+        CACHYOS       ("CHY"),
+        BAZZITE       ("BAZ"),
+        MANJARO       ("MAJ"),
+        FEDORA        ("FED");
+
+        companion object {
+            fun fromId(id: String): OsId {
+                return entries.find { entry -> entry.id == id } ?: UNKNOWN
+            }
+        }
+    }
 
     object Extensions {
 

@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.asvorded.monidroid.EchoClient.HostInfo
 import com.asvorded.monidroid.MonidroidProtocol.ErrorCode
+import com.asvorded.monidroid.MonidroidProtocol.OsId
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -112,7 +113,7 @@ class ClientService : Service() {
         if (intent.action == ACTION_START) {
             val serverAddress = intent.getSerializableExtra("address") as InetAddress
             val hostName = intent.getStringExtra("hostName")
-            hostInfo = HostInfo(serverAddress, hostName)
+            hostInfo = HostInfo(serverAddress, OsId.UNKNOWN, hostName)
 
             monitorMode = intent.getSerializableExtra("monitorMode") as MonitorMode
         }

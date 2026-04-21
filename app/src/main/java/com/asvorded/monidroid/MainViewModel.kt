@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
 import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.MonidroidProtocol.OsId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
@@ -77,7 +78,7 @@ class MainViewModel : ViewModel() {
             runBlocking(Dispatchers.IO) {
                 serverAddress = InetAddress.getByName(address)
             }
-            successCallback(HostInfo(serverAddress, null))
+            successCallback(HostInfo(serverAddress, OsId.UNKNOWN, null))
         } catch (e: Exception) {
             errorMessage = e.localizedMessage
         }

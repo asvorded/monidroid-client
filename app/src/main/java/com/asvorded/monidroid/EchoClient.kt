@@ -1,5 +1,7 @@
 package com.asvorded.monidroid
 
+import com.asvorded.monidroid.MonidroidProtocol.OS_ID_LEN
+import com.asvorded.monidroid.MonidroidProtocol.OsId
 import com.asvorded.monidroid.MonidroidProtocol.SV_ECHO_WORD
 import java.io.IOException
 import java.net.DatagramPacket
@@ -12,7 +14,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Collections
 
 class EchoClient {
-    data class HostInfo(val address: InetAddress, val hostName: String?)
+    data class HostInfo(val address: InetAddress, val osId: OsId, val hostName: String?)
 
     enum class AutoDetectingOptions {
         Enabled, Error, Disabled
@@ -109,25 +111,36 @@ class EchoClient {
             try {
                 val dgram = DatagramPacket(buf, buf.size)
                 echoSocket.receive(dgram)
-                if (dgram.address != echoSocket.inetAddress && dgram.length >= SV_ECHO_WORD.length + 4) {
+                if (dgram.address != echoSocket.inetAddress
+                    && dgram.length >= SV_ECHO_WORD.length + OS_ID_LEN + 4
+                ) {
                     val data = dgram.data
 
                     // Check header
-                    if (data.copyOfRange(0, SV_ECHO_WORD.length)
-                        .toString(StandardCharsets.UTF_8) == SV_ECHO_WORD)
+                    if (data.decodeToString(0, SV_ECHO_WORD.length) == SV_ECHO_WORD)
                     {
+                        // Get OS ID
+                        val osId = data.decodeToString(SV_ECHO_WORD.length,
+                            SV_ECHO_WORD.length + OS_ID_LEN)
+
                         // Get host name length
                         val len = ByteBuffer
-                            .wrap(data.copyOfRange(SV_ECHO_WORD.length, SV_ECHO_WORD.length + 4))
+                            .wrap(data.copyOfRange(
+                                SV_ECHO_WORD.length + OS_ID_LEN,
+                                SV_ECHO_WORD.length + OS_ID_LEN + 4))
                             .order(ByteOrder.LITTLE_ENDIAN)
                             .getInt()
 
-                        if (SV_ECHO_WORD.length + 4 + len == dgram.length) {
-                            val hostName = data.copyOfRange(SV_ECHO_WORD.length + 4, dgram.length)
-                                .toString(StandardCharsets.UTF_8)
+                        val hostName = data.decodeToString(
+                            SV_ECHO_WORD.length + OS_ID_LEN + 4,
+                            SV_ECHO_WORD.length + OS_ID_LEN + 4 + len,
+                        )
 
-                            foundHosts += HostInfo(dgram.address, hostName)
-                        }
+                        foundHosts += HostInfo(
+                            dgram.address,
+                            OsId.fromId(osId),
+                            hostName
+                        )
                     }
                 }
             } catch (_: IOException) {

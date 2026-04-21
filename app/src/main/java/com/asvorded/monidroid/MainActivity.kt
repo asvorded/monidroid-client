@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,6 +40,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,8 +61,10 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
 import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.MonidroidProtocol.OsId
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
+import java.net.InetAddress
 
 class MainActivity : ComponentActivity() {
     private var service: ClientService? = null
@@ -309,7 +313,7 @@ fun ManualConnectionForm(
             ) {
                 Text(stringResource(R.string.connect_button))
             }
-            Spacer(modifier = Modifier.padding( horizontal = 5.dp))
+            Spacer(modifier = Modifier.padding(horizontal = 5.dp))
             OutlinedButton(
                 onClick = {  },
                 modifier = Modifier.weight(1f)
@@ -360,8 +364,6 @@ fun DetectedDevicesList(
     onRetryClick: () -> Unit,
     onDeviceClick: (HostInfo) -> Unit
 ) {
-
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -431,6 +433,17 @@ fun DetectedDeviceInfo(
     hostInfo: HostInfo,
     onDeviceClick: () -> Unit
 ) {
+    val osIcons = remember {
+        mapOf(
+            OsId.WINDOWS to R.drawable.os_windows,
+            OsId.GENERIC_LINUX to R.drawable.os_generic_linux,
+            OsId.UBUNTU to R.drawable.os_ubuntu,
+            OsId.KUBUNTU to R.drawable.os_kubuntu,
+            OsId.ARCH_LINUX to R.drawable.os_arch_linux,
+            OsId.CACHYOS to R.drawable.os_cachyos,
+        )
+    }
+
     Row(
         modifier = Modifier
             .padding(2.dp)
@@ -444,14 +457,15 @@ fun DetectedDeviceInfo(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
-            painter = painterResource(R.drawable.computer),
+            painter = painterResource(osIcons[hostInfo.osId] ?: R.drawable.computer),
             contentDescription = null,
-            modifier = Modifier.padding(start = 6.dp)
+            modifier = Modifier.padding(start = 6.dp).size(28.dp)
         )
         Spacer(modifier = Modifier.width(5.dp))
-        Text(text = stringResource(R.string.detected_device_pattern,
+        Text(
+            text = stringResource(R.string.detected_device_pattern,
             hostInfo.hostName!!, hostInfo.address.hostAddress),
-            )
+        )
     }
 }
 
@@ -583,5 +597,15 @@ fun SessionAbortedMessage(
     )
 @Composable
 fun GreetingPreview() {
-    SessionAbortedMessage(0, "[XXX] Test") { }
+    DetectedDevicesList(AutoDetectingOptions.Enabled,
+        listOf(
+            HostInfo(InetAddress.getByName("1.1.1.1"), OsId.WINDOWS, "DESKTOP-11DH4S"),
+            HostInfo(InetAddress.getByName("1.1.1.2"), OsId.UBUNTU, "ahahah"),
+            HostInfo(InetAddress.getByName("1.1.1.3"), OsId.KUBUNTU, "eeee-os"),
+            HostInfo(InetAddress.getByName("1.1.1.4"), OsId.ARCH_LINUX, "lol-os"),
+            HostInfo(InetAddress.getByName("1.2.1.4"), OsId.CACHYOS, "user-vm"),
+        ),
+        {},
+        {}
+    )
 }
