@@ -1,11 +1,14 @@
 package com.asvorded.monidroid
 
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -24,18 +27,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.asvorded.monidroid.MonidroidProtocol.DEBUG_TAG
 import com.asvorded.monidroid.MonitorViewModel.ConnectionStates
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
@@ -136,18 +145,30 @@ fun MonitorScreen(
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxSize().background(Color.Black),
     ) {
-        if (viewModel.connectionState != ConnectionStates.DisplayOff) {
+        if (viewModel.connectionState == ConnectionStates.Connected
+            || viewModel.connectionState == ConnectionStates.Connecting) {
             Image(
                 contentDescription = "Monitor screen",
                 painter = BitmapPainter(viewModel.currentFrame),
-                modifier = if (viewModel.connectionState == ConnectionStates.Init ||
-                    viewModel.connectionState == ConnectionStates.Connecting
-                )
-                    Modifier.fillMaxSize().blur(5.dp)
-                        .graphicsLayer(alpha = 0.6f)
-                else
-                    Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(if (viewModel.connectionState == ConnectionStates.Connecting)
+                        5.dp else 0.dp)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                viewModel.onRawInput(event)
+                            }
+                        }
+                    }
             )
+        }
+        if (viewModel.connectionState != ConnectionStates.Connected) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .blur(5.dp)
+                .background(Color.Black.copy(alpha = 0.6f)))
         }
         when (viewModel.connectionState) {
             ConnectionStates.Init -> {
@@ -171,7 +192,7 @@ fun MonitorScreen(
                     color = Color.Gray
                 )
             }
-            ConnectionStates.Connected -> { }
+            ConnectionStates.Connected -> Unit
         }
     }
 }
@@ -215,7 +236,11 @@ fun ConnectingScreen(
 @Composable
 fun ScrPreview() {
     val viewModel = MonitorViewModel()
-    viewModel.connectionState = ConnectionStates.DisplayOff
+    viewModel.connectionState = ConnectionStates.Connected
     viewModel.hostname = "192.168.1.4"
+    viewModel.currentFrame = ContextCompat
+        .getDrawable(LocalContext.current, R.drawable.error)!!
+        .toBitmap()
+        .asImageBitmap()
     MonitorScreen(viewModel)
 }
