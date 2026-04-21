@@ -25,7 +25,7 @@ class MainViewModel : ViewModel() {
 
     var connecting: Boolean by mutableStateOf(false)
 
-    var code: Int? by mutableStateOf(null)
+    var serverError: ConnectionState.ServerError? by mutableStateOf(null)
 
     private val echoClient = EchoClient()
     private val foundHostsSet = Collections.synchronizedSet(mutableSetOf<HostInfo>())
@@ -101,10 +101,10 @@ class MainViewModel : ViewModel() {
     }
 
     fun closeSessionMessage() {
-        code = null
+        serverError = null
     }
 
     fun onSessionEndedWithError(code: Int, message: String?) {
-        this.code = code
+        this.serverError = ConnectionState.ServerError(code, message)
     }
 }

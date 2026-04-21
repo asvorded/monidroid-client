@@ -21,8 +21,9 @@
     <string name="connection_error_4">Текст ошибки: %1$s</string>
 
     <string name="session_aborted">Сессия прервана</string>
-    <string name="session_ended_message">Сообщение: %1$s</string>
-    <string name="session_ended_error_code">Код ошибки: %1$d</string>
+    <string name="session_aborted_error_text">Текст ошибки: %1$s</string>
+    <string name="session_aborted_error_text_suffix">Пожалуйста, свяжитесь с поддержкой</string>
+    <string name="session_aborted_error_code">Код ошибки: %1$d</string>
 
     <!-- Monitor page strings-->
     <string name="init_connecting">Соединение…</string>

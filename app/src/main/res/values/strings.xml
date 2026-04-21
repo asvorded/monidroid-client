@@ -21,15 +21,16 @@
     <string name="detected_device_pattern" translatable="false">%1$s (%2$s)</string>
     <string name="searching_devices">Searching devices…</string>
 
-    <string name="connection_error_1">Connection failed. Try check the following:</string>
+    <string name="connection_error_1">Connection failed. Please ensure that:</string>
     <string name="connection_error_2">1) IP address is correct</string>
     <string name="connection_error_3">2) Monidroid server is running on your computer</string>
     <string name="connection_error_4">Error message: %1$s</string>
 
     <string name="session_aborted">Session aborted</string>
-    <string name="session_ended_message">Message: %1$s</string>
+    <string name="session_aborted_error_text">Error text: %1$s</string>
+    <string name="session_aborted_error_text_suffix">Please contact support</string>
     <!-- TODO: For removal -->
-    <string name="session_ended_error_code">Error code: %1$d</string>
+    <string name="session_aborted_error_code">Error code: %1$d</string>
 
     <!-- Monitor page strings-->
     <string name="title_activity_monitor" translatable="false">MonitorActivity</string>

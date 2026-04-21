@@ -252,10 +252,10 @@ fun MainPage(
             }
         )
     }
-    if (viewModel.code != null) {
+    if (viewModel.serverError != null) {
         SessionAbortedMessage(
-            code = viewModel.code!!,
-            message = "",
+            code = viewModel.serverError!!.code,
+            message = viewModel.serverError!!.message,
             onOkClick = {
                 viewModel.closeSessionMessage()
             }
@@ -348,6 +348,7 @@ fun IPAddressTextField(
             imeAction = ImeAction.None,
             keyboardType = KeyboardType.Number
         ),
+        shape = RoundedCornerShape(percent = 30),
         modifier = modifier
     )
 }
@@ -359,6 +360,8 @@ fun DetectedDevicesList(
     onRetryClick: () -> Unit,
     onDeviceClick: (HostInfo) -> Unit
 ) {
+
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -374,7 +377,7 @@ fun DetectedDevicesList(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(198, 198, 252, 255))
-                .padding(start = 6.dp, top = 3.dp, bottom = 3.dp),
+                .padding(start = 6.dp, top = 5.dp, bottom = 5.dp),
         )
         when (state) {
             AutoDetectingOptions.Enabled -> {
@@ -551,10 +554,19 @@ fun SessionAbortedMessage(
                     fontSize = 24.sp
                 )
                 Spacer(modifier = Modifier.height(15.dp))
-                // TODO: Make messages here
-                Text(
-                    stringResource(R.string.session_ended_error_code, code),
-                )
+                if (message != null) {
+                    Text(
+                        stringResource(R.string.session_aborted_error_text, message),
+                    )
+//                    Text(
+//                        stringResource(R.string.session_aborted_error_text_suffix),
+//                        modifier = Modifier.padding(top = 10.dp)
+//                    )
+                } else {
+                    Text(
+                        stringResource(R.string.session_aborted_error_code, code),
+                    )
+                }
                 Spacer(modifier = Modifier.height(15.dp))
                 TextButton(
                     onClick = onOkClick
@@ -571,5 +583,5 @@ fun SessionAbortedMessage(
     )
 @Composable
 fun GreetingPreview() {
-    SessionAbortedMessage(0, null) { }
+    SessionAbortedMessage(0, "[XXX] Test") { }
 }
