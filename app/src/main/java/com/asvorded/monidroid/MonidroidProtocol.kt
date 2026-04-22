@@ -3,16 +3,13 @@ package com.asvorded.monidroid
 /**
  * Describes Monidroid protocol
  *
- * Formats describe sequences of elements which make up a single byte-array message
+ * Formats describe sequences of elements which
+ * together with word make up a single byte-array message
  *
- * Used types:
- * - **literal** - protocol's predefined string literal
- * - **string** - UTF-8 string.
- * - **int** - 32-bit little-endian integer
- * - **bytes** - array of bytes
- *
- * Definitions:
- * - **length of string** - count of characters **excluding** '\0'
+ * Types remarks:
+ * - Strings are UTF-8
+ * - multibyte integers are little-endian
+ * - length of string does not include '\0'
  */
 object MonidroidProtocol {
     enum class ErrorCode(val code: Int) {
@@ -71,6 +68,39 @@ object MonidroidProtocol {
      * Format: <code(int)><message length(int)><message(string)>
      */
     const val SV_ERROR_WORD = "SERRC"
+
+    /**
+     * **INPUT Client message**
+     *
+     * Sent after screen input
+     *
+     * Type 1 format (mouse move): <1(byte)><X offset(int)><Y offset(int)>
+     *
+     * Type 2 format (mouse buttons): <2(byte)><button flags(byte)>
+     *
+     * Type 3 format (mouse scroll): <3(byte)><scroll offset(int)>
+     *
+     * Type 5 format (touch input): <5(byte)><fingers count(byte)><fingers(finger[])>,
+     *      where finger: <finger id(int)><X(int)><Y(int)>
+     *      and X, Y are absolute and scaled to screen dimensions
+     */
+    const val INPUT_WORD = "CINPT"
+
+    enum class InputType(val code: Int) {
+        MouseMove    (1),
+        MouseButtons (2),
+        MouseScroll  (3),
+
+        Mouse        (4),
+
+        Touch        (5),
+    }
+
+    object MouseFlags {
+        const val LButton = 1 shl 0
+        const val RButton = 1 shl 1
+        const val MButton = 1 shl 2
+    }
 
     /**
      * **ECHO Client message**

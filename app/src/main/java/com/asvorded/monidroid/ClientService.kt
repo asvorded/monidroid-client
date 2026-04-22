@@ -17,10 +17,14 @@ import androidx.core.app.ServiceCompat
 import com.asvorded.monidroid.EchoClient.HostInfo
 import com.asvorded.monidroid.MonidroidProtocol.ErrorCode
 import com.asvorded.monidroid.MonidroidProtocol.OsId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -32,6 +36,7 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
+import kotlin.time.Duration
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -65,6 +70,11 @@ data class MonitorMode(
     }
 }
 
+data class FrameEvent(
+    val bitmap: Bitmap,
+    val frameTime: Duration
+)
+
 class ClientService : Service() {
     companion object {
         const val CHANNEL_ID = "ClientServiceChannel"
@@ -86,17 +96,19 @@ class ClientService : Service() {
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Initialized())
     val state = _state.asStateFlow()
 
-    private val _event = MutableSharedFlow<Bitmap?>()
+    private val _event = MutableSharedFlow<FrameEvent?>()
     val frameEvent = _event.asSharedFlow()
 
     private lateinit var hostInfo: HostInfo
-    private lateinit var monitorMode: MonitorMode
+    private lateinit var preferredMode: MonitorMode
+    private var lastFrameTime = TimeSource.Monotonic.markNow()
 
     private var binder: ClientBinder = ClientBinder()
 
     private lateinit var clientSocket: Socket
     private var running: Boolean = false
     private var sessionThread = Thread(this::threadMain)
+    private val serviceScope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -115,7 +127,7 @@ class ClientService : Service() {
             val hostName = intent.getStringExtra("hostName")
             hostInfo = HostInfo(serverAddress, OsId.UNKNOWN, hostName)
 
-            monitorMode = intent.getSerializableExtra("monitorMode") as MonitorMode
+            preferredMode = intent.getSerializableExtra("monitorMode") as MonitorMode
         }
 
         return binder
@@ -129,6 +141,47 @@ class ClientService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(MonidroidProtocol.DEBUG_TAG, String.format("(Debug) %s destroyed", this))
+    }
+
+    fun sendButtons(flags: Int) {
+        sendInput(
+            MonidroidProtocol.InputType.MouseButtons,
+            byteArrayOf(flags.toByte())
+        )
+    }
+
+    fun sendMouseMove(dx: Int, dy: Int) {
+        sendInput(
+            MonidroidProtocol.InputType.MouseMove,
+            ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(dx)
+                .putInt(dy)
+                .array()
+        )
+    }
+
+    fun sendScroll(delta: Int) {
+        sendInput(
+            MonidroidProtocol.InputType.MouseScroll,
+            ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(delta)
+                .array()
+        )
+    }
+
+    private fun sendInput(type: MonidroidProtocol.InputType, data: ByteArray) {
+        val bs = ByteArrayOutputStream()
+
+        bs.write(MonidroidProtocol.INPUT_WORD.toByteArray(Charsets.US_ASCII))
+        bs.write(type.code)
+        bs.write(data)
+
+        serviceScope.launch {
+            runCatching {
+                val out = clientSocket.getOutputStream()
+                out.write(bs.toByteArray())
+            }
+        }
     }
 
     fun disconnect() {
@@ -242,11 +295,11 @@ class ClientService : Service() {
             sendWelcome()
 
             _state.value = ConnectionState.Streaming()
-
             val reader = DataInputStream(clientSocket.getInputStream())
 
             while (true) {
-                // TODO: For new protocol
+                lastFrameTime = TimeSource.Monotonic.markNow()
+
                 val headerBuf = ByteArray(MonidroidProtocol.WORD_LEN)
                 reader.readFully(headerBuf)
                 when (headerBuf.toString(StandardCharsets.US_ASCII)) {
@@ -275,21 +328,21 @@ class ClientService : Service() {
         bs.write(word)
 
         // model
-        val model = String.format("%s %s", Build.BRAND, Build.MODEL)
+        val modelBytes = "${Build.BRAND} ${Build.MODEL}".toByteArray(Charsets.UTF_8)
         bs.write(
             ByteBuffer
                 .allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                .putInt(model.length).array()
+                .putInt(modelBytes.size).array()
         )
-        bs.write(model.toByteArray(StandardCharsets.UTF_8))
+        bs.write(modelBytes)
 
         // screen options
         bs.write(
             ByteBuffer
                 .allocate(12).order(ByteOrder.LITTLE_ENDIAN)
-                .putInt(monitorMode.width)
-                .putInt(monitorMode.height)
-                .putInt(monitorMode.refreshRate)
+                .putInt(preferredMode.width)
+                .putInt(preferredMode.height)
+                .putInt(preferredMode.refreshRate)
                 .array()
         )
 
@@ -313,10 +366,11 @@ class ClientService : Service() {
                 imageBuf, 0, imageSize, BitmapFactory.Options()
             )
 
-            if (bitmap != null) {
-                runBlocking {
-                    _event.emit(bitmap)
-                }
+            val current = TimeSource.Monotonic.markNow()
+            val duration = current - lastFrameTime
+            lastFrameTime = TimeSource.Monotonic.markNow()
+            runBlocking {
+                _event.emit(FrameEvent(bitmap, duration))
             }
         } else {
             runBlocking {

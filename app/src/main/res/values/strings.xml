@@ -38,6 +38,7 @@
     <string name="wait_connection">Wait for connection with host will succeed</string>
 
     <string name="display_off">Display disabled</string>
+    <string name="monitor_fps">%1$d fps</string>
 
     <string name="connection_lost">Connection lost</string>
     <string name="trying_restore_connection">We are trying to restore connection</string>

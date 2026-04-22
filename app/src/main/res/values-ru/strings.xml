@@ -31,6 +31,7 @@
 
     <string name="display_off">Монитор выключен</string>
 
+    <string name="monitor_fps">%1$s к/с</string>
     <string name="connection_lost">Соединение потеряно</string>
     <string name="trying_restore_connection">Мы пробуем восстановить соединение</string>
     <string name="host_name">Компьютер: %1$s</string>

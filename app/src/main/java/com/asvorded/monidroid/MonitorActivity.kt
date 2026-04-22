@@ -13,25 +13,43 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -44,8 +62,10 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asvorded.monidroid.MonidroidProtocol.DEBUG_TAG
 import com.asvorded.monidroid.MonitorViewModel.ConnectionStates
+import com.asvorded.monidroid.MonitorViewModel.FpsPosition
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.net.InetAddress
@@ -79,7 +99,14 @@ class MonitorActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                MonitorScreen(viewModel)
+                MonitorScreen(
+                    viewModel,
+                    onLButton = {  },
+                    onRButton = {  },
+                    onMouseMove = { offset ->
+                        service?.sendMouseMove(offset.x.toInt(), offset.y.toInt())
+                    },
+                )
             }
         }
 
@@ -129,8 +156,8 @@ class MonitorActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 // TODO: Will be changed to streaming
-                service?.frameEvent?.collect { bitmap ->
-                    viewModel.onNewFrame(bitmap)
+                service?.frameEvent?.collect { event ->
+                    viewModel.onNewFrame(event)
                 }
             }
         }
@@ -139,7 +166,10 @@ class MonitorActivity : ComponentActivity() {
 
 @Composable
 fun MonitorScreen(
-    viewModel: MonitorViewModel
+    viewModel: MonitorViewModel,
+    onLButton: () -> Unit,
+    onRButton: () -> Unit,
+    onMouseMove: (delta: Offset) -> Unit
 ) {
     Box(
         contentAlignment = Alignment.Center,
@@ -158,7 +188,9 @@ fun MonitorScreen(
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent()
-                                viewModel.onRawInput(event)
+                                if (event.type == PointerEventType.Move) {
+                                    onMouseMove(event.changes.first().positionChange())
+                                }
                             }
                         }
                     }
@@ -169,6 +201,11 @@ fun MonitorScreen(
                 .fillMaxSize()
                 .blur(5.dp)
                 .background(Color.Black.copy(alpha = 0.6f)))
+        } else {
+            FpsCounter(viewModel.fps, viewModel.fpsPosition)
+
+            MouseButton(true, onLButton)
+            MouseButton(false, onRButton)
         }
         when (viewModel.connectionState) {
             ConnectionStates.Init -> {
@@ -195,6 +232,49 @@ fun MonitorScreen(
             ConnectionStates.Connected -> Unit
         }
     }
+}
+
+@Composable
+fun BoxScope.MouseButton(left: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Gray.copy(alpha = 0.5f),
+            contentColor = Color.White
+        ),
+        border = BorderStroke(2.dp, Color.Gray),
+        shape = CircleShape,
+        contentPadding = PaddingValues(0.dp),
+        modifier = Modifier
+            .align(if (left) Alignment.BottomStart else Alignment.BottomEnd)
+            .padding(5.dp)
+    ) {
+        Image(
+            painterResource(if (left) R.drawable.mouse_left_button else R.drawable.mouse_right_button),
+            contentDescription = if (left) "L" else "R",
+            modifier = Modifier.size(56.dp).padding(10.dp)
+        )
+    }
+}
+
+@Composable
+fun BoxScope.FpsCounter(fps: Int, position: FpsPosition) {
+    Text(
+        text = stringResource(R.string.monitor_fps, fps),
+        color = Color.Gray,
+        modifier = Modifier
+            .align(
+                when (position) {
+                    FpsPosition.TopLeft -> Alignment.TopStart
+                    FpsPosition.TopRight -> Alignment.TopEnd
+                    FpsPosition.BottomLeft -> Alignment.BottomStart
+                    FpsPosition.BottomRight -> Alignment.BottomEnd
+                }
+            )
+            .padding(5.dp)
+            .background(Color.Gray.copy(alpha = 0.4f), RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 5.dp)
+    )
 }
 
 @Composable
@@ -232,7 +312,7 @@ fun ConnectingScreen(
     }
 }
 
-@Preview(name = "haha", showSystemUi = false, device = "spec:parent=pixel_7_pro,orientation=landscape", )
+@Preview(showSystemUi = false, device = "spec:parent=pixel_7_pro,orientation=landscape")
 @Composable
 fun ScrPreview() {
     val viewModel = MonitorViewModel()
@@ -242,5 +322,10 @@ fun ScrPreview() {
         .getDrawable(LocalContext.current, R.drawable.error)!!
         .toBitmap()
         .asImageBitmap()
-    MonitorScreen(viewModel)
+    MonitorScreen(
+        viewModel,
+        {},
+        {},
+        {}
+    )
 }
