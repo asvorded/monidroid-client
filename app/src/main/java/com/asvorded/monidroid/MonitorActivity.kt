@@ -148,6 +148,9 @@ class MonitorActivity : ComponentActivity() {
                             setResult(RESULT_OK, intent)
                             finish()
                         }
+                        is ConnectionState.USBDisconnected -> {
+                            finish()
+                        }
                     }
                 }
             }

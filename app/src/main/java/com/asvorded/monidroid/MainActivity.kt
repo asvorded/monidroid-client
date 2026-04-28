@@ -111,12 +111,15 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainPage(
                         viewModel = viewModel,
-                        onConnectClick = { device ->
-                            onConnectClick(device)
+                        onWifiConnectClick = { device ->
+                            onWifiConnectClick(device)
                         },
                         onCancelClick = {
                             cancelConnection()
                             viewModel.onCancelConnection()
+                        },
+                        onUsbClick = {
+                            onUsbClick()
                         },
                         modifier = Modifier.padding(innerPadding)
                     )
@@ -140,9 +143,9 @@ class MainActivity : ComponentActivity() {
         if (isBound) unbindService(connection)
     }
 
-    private fun onConnectClick(device: HostInfo) {
+    private fun onWifiConnectClick(device: HostInfo) {
         val intent = Intent(applicationContext, ClientService::class.java).apply {
-            action = ClientService.ACTION_START
+            action = ClientService.ACTION_START_WIFI
 
             putExtra("hostName", device.hostName)
             putExtra("address", device.address)
@@ -157,6 +160,22 @@ class MainActivity : ComponentActivity() {
 
         // Rebind if we previously returned from monitor activity
         unbind()
+        bindService(intent, connection, BIND_AUTO_CREATE)
+    }
+
+    private fun onUsbClick() {
+        val intent = Intent(applicationContext, ClientService::class.java).apply {
+            action = ClientService.ACTION_START_USB
+        }
+
+        val displayMetrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(displayMetrics)
+        val width = displayMetrics.widthPixels
+        val height = displayMetrics.heightPixels
+
+        intent.putExtra("monitorMode", MonitorMode(width, height, 60))
+
+        // TODO: No unbind() need?
         bindService(intent, connection, BIND_AUTO_CREATE)
     }
 
@@ -210,7 +229,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainPage(
     modifier: Modifier = Modifier,
-    onConnectClick: (HostInfo) -> Unit,
+    onWifiConnectClick: (HostInfo) -> Unit,
+    onUsbClick: () -> Unit,
     onCancelClick: () -> Unit,
     viewModel: MainViewModel = viewModel()
 ) {
@@ -227,7 +247,7 @@ fun MainPage(
             onRetryClick = {
                 viewModel.startAutoDetecting()
             },
-            onDeviceClick = onConnectClick
+            onDeviceClick = onWifiConnectClick
         )
         Spacer(modifier = Modifier.padding(10.dp))
         ManualConnectionForm(
@@ -235,9 +255,10 @@ fun MainPage(
             onAddressChange = { value ->
                 viewModel.address = value
             },
-            onConnectClick = {
-                viewModel.onManualConnectClick(onConnectClick)
-            }
+            onWifiConnectClick = {
+                viewModel.onManualConnectClick(onWifiConnectClick)
+            },
+            onUsbClick = onUsbClick
         )
         Spacer(modifier = Modifier.padding(10.dp))
 
@@ -292,7 +313,8 @@ fun Header(modifier: Modifier = Modifier) {
 fun ManualConnectionForm(
     address: String,
     onAddressChange: (String) -> Unit,
-    onConnectClick: () -> Unit
+    onWifiConnectClick: () -> Unit,
+    onUsbClick: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -308,14 +330,14 @@ fun ManualConnectionForm(
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedButton(
-                onClick = onConnectClick,
+                onClick = onWifiConnectClick,
                 modifier = Modifier.weight(1f)
             ) {
                 Text(stringResource(R.string.connect_button))
             }
             Spacer(modifier = Modifier.padding(horizontal = 5.dp))
             OutlinedButton(
-                onClick = {  },
+                onClick = onUsbClick,
                 modifier = Modifier.weight(1f)
             ) {
                 Image(

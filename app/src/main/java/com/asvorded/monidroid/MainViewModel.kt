@@ -1,16 +1,21 @@
 package com.asvorded.monidroid
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.asvorded.monidroid.EchoClient.AutoDetectingOptions
 import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.MonidroidProtocol.DEBUG_TAG
 import com.asvorded.monidroid.MonidroidProtocol.OsId
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.net.InetAddress
+import java.net.ServerSocket
 import java.util.Collections
 
 class MainViewModel : ViewModel() {
@@ -107,5 +112,23 @@ class MainViewModel : ViewModel() {
 
     fun onSessionEndedWithError(code: Int, message: String?) {
         this.serverError = ConnectionState.ServerError(code, message)
+    }
+
+    fun wtf() {
+        viewModelScope.launch(Dispatchers.IO) {
+            var s: ServerSocket? = null
+            try {
+                s = ServerSocket(14767)
+                s.soTimeout = 10000
+                val client = s.accept()
+                val b = ByteArray(10)
+                client.getInputStream().read(b)
+                Log.d(DEBUG_TAG, "YEA: ${b.toString(Charsets.US_ASCII)}")
+            } catch (e: Exception) {
+                Log.d(DEBUG_TAG, "LUL: ${e.message}")
+            } finally {
+                s?.close()
+            }
+        }
     }
 }

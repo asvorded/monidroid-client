@@ -29,6 +29,7 @@ object MonidroidProtocol {
     const val DEBUG_TAG = "Monidroid Client"
 
     const val PROTOCOL_PORT = 14770
+    const val ADB_PORT = 14767
 
     const val WORD_LEN = 5
 

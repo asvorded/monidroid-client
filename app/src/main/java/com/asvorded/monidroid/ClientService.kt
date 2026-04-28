@@ -19,7 +19,6 @@ import com.asvorded.monidroid.MonidroidProtocol.ErrorCode
 import com.asvorded.monidroid.MonidroidProtocol.OsId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -58,6 +57,7 @@ sealed class ConnectionState {
                 require(message == null)
         }
     }
+    class USBDisconnected() : ConnectionState()
 }
 
 data class MonitorMode(
@@ -81,7 +81,8 @@ class ClientService : Service() {
         const val NOTIFICATION_ID = 100
         const val CONNECT_TIMEOUT = 5000
 
-        const val ACTION_START = "ACTION_START"
+        const val ACTION_START_WIFI = "ACTION_START_WIFI"
+        const val ACTION_START_USB = "ACTION_START_USB"
         const val ACTION_JOIN = "ACTION_JOIN"
     }
 
@@ -100,6 +101,8 @@ class ClientService : Service() {
     val frameEvent = _event.asSharedFlow()
 
     private lateinit var hostInfo: HostInfo
+    private var port: Int = 0
+    private var isUsb = false
     private lateinit var preferredMode: MonitorMode
     private var lastFrameTime = TimeSource.Monotonic.markNow()
 
@@ -122,12 +125,17 @@ class ClientService : Service() {
     }
 
     override fun onBind(intent: Intent): IBinder {
-        if (intent.action == ACTION_START) {
+        if (intent.action == ACTION_START_WIFI) {
             val serverAddress = intent.getSerializableExtra("address") as InetAddress
             val hostName = intent.getStringExtra("hostName")
             hostInfo = HostInfo(serverAddress, OsId.UNKNOWN, hostName)
-
+            port = MonidroidProtocol.PROTOCOL_PORT
             preferredMode = intent.getSerializableExtra("monitorMode") as MonitorMode
+        } else if (intent.action == ACTION_START_USB) {
+            hostInfo = HostInfo(InetAddress.getByName("127.0.0.1"), OsId.UNKNOWN, null)
+            port = MonidroidProtocol.PROTOCOL_PORT
+            preferredMode = intent.getSerializableExtra("monitorMode") as MonitorMode
+            isUsb = true
         }
 
         return binder
@@ -262,6 +270,19 @@ class ClientService : Service() {
             R.string.notification_connected_to,
             hostInfo.hostName ?: hostInfo.address.hostAddress))
 
+        if (isUsb) {
+            // USB session start
+            communicationMain()
+
+            // USB session end
+            _state.value = ConnectionState.USBDisconnected()
+
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+
+        // Wi-Fi session start
         while (running) {
             // Main loop
             communicationMain()
