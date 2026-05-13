@@ -38,10 +38,13 @@ object MonidroidProtocol {
      *
      * Sent when connection with a server is establishing
      *
+     * **CWLCM** - for Wi-Fi connections, **CUSBW** - fow USB connections
+     *
      * Format: <client model length(int)><model(string)><screen width(int)>
      *     <screen height(int)><refresh rate(int)>
      */
     const val WELCOME_WORD = "CWLCM"
+    const val USB_WELCOME_WORD = "CUSBW"
 
     /**
      * ** STREAM Server message

@@ -143,12 +143,12 @@ class ClientService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(MonidroidProtocol.DEBUG_TAG, String.format("(Debug) %s created", this))
+        Log.d(MonidroidProtocol.DEBUG_TAG, "(Debug) $this created")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(MonidroidProtocol.DEBUG_TAG, String.format("(Debug) %s destroyed", this))
+        Log.d(MonidroidProtocol.DEBUG_TAG, "(Debug) $this destroyed")
     }
 
     fun sendButtons(flags: Int) {
@@ -345,8 +345,8 @@ class ClientService : Service() {
         val bs = ByteArrayOutputStream()
 
         // WELCOME
-        val word = MonidroidProtocol.WELCOME_WORD.toByteArray(StandardCharsets.US_ASCII)
-        bs.write(word)
+        val word = if (isUsb) MonidroidProtocol.USB_WELCOME_WORD else MonidroidProtocol.WELCOME_WORD
+        bs.write(word.toByteArray())
 
         // model
         val modelBytes = "${Build.BRAND} ${Build.MODEL}".toByteArray(Charsets.UTF_8)
