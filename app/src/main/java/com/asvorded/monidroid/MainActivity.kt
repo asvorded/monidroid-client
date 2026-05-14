@@ -30,6 +30,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Dangerous
+import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -341,7 +347,7 @@ fun ManualConnectionForm(
                 modifier = Modifier.weight(1f)
             ) {
                 Image(
-                    painterResource(R.drawable.usb),
+                    Icons.Default.Usb,
                     contentDescription = "USB",
                     modifier = Modifier.height(24.dp).padding(end = 8.dp)
                 )
@@ -363,7 +369,7 @@ fun IPAddressTextField(
         },
         leadingIcon = {
             Image(
-                painter = painterResource(R.drawable.wifi_48px),
+                Icons.Default.Wifi,
                 contentDescription = "",
                 modifier = Modifier.width(30.dp))
         },
@@ -479,7 +485,8 @@ fun DetectedDeviceInfo(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
-            painter = painterResource(osIcons[hostInfo.osId] ?: R.drawable.computer),
+            painter = osIcons[hostInfo.osId]?.let { painterResource(it) }
+                ?: rememberVectorPainter(Icons.Default.Computer),
             contentDescription = null,
             modifier = Modifier.padding(start = 6.dp).size(28.dp)
         )
@@ -543,7 +550,7 @@ fun ConnectionError(
                 modifier = Modifier.padding(25.dp)
             ) {
                 Icon(
-                    painterResource(R.drawable.error),
+                    Icons.Default.Dangerous,
                     contentDescription = null,
                     modifier = Modifier
                         .height(48.dp)

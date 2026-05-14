@@ -35,13 +35,20 @@
     <string name="connection_lost">Соединение потеряно</string>
     <string name="trying_restore_connection">Мы пробуем восстановить соединение</string>
     <string name="host_name">Компьютер: %1$s</string>
+    <string name="session_connected_by_usb">Подключен по USB</string>
     <string name="unknown_host">имя неизвестно</string>
 
     <!-- Descriptions -->
+    <string name="session_menu_input_switch">Сенсорный ввод</string>
+    <string name="session_menu_disconnect">Отключиться</string>
+    <string name="session_disconnect_confirm">Вы действительно хотите отключиться и выйти?</string>
+    <string name="session_disconnect_no">Нет</string>
     <string name="service_desc">Управляет сеансом виртуального монитора Monidroid</string>
     <string name="notification_channel_name">Состояние сеанса</string>
     <string name="notification_channel_desc">Отображет текущее состояние соединения с сервером Monidroid</string>
     <string name="notification_connecting">Выполняется подключение к %1$s…</string>
     <string name="notification_connected_to">Подключен к %1$s</string>
     <string name="notification_button_disconnect">Отключиться</string>
+    <string name="session_disconnect_yes">Да</string>
+    <string name="session_connected_to">Подключен к %1$s</string>
 </resources>

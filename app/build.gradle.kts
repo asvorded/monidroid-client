@@ -52,16 +52,16 @@ android {
 }
 
 dependencies {
-    // Hilt
-    // implementation(libs.hilt.android)
-    // kapt(libs.hilt.android.compiler)
-
     // Jetpack Compose integration
     implementation(libs.androidx.navigation.compose)
 
     // Views/Fragments integration
     implementation(libs.androidx.navigation.fragment)
     implementation(libs.androidx.navigation.ui)
+
+    // Icons
+    implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -82,7 +82,3 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
-
-//kapt {
-//    correctErrorTypes = true
-//}

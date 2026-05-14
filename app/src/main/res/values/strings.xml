@@ -43,7 +43,16 @@
     <string name="connection_lost">Connection lost</string>
     <string name="trying_restore_connection">We are trying to restore connection</string>
     <string name="host_name">Host: %1$s</string>
+    <string name="session_connected_to">Connected to %1$s</string>
+    <string name="session_connected_by_usb">Connected by USB</string>
     <string name="unknown_host">unknown</string>
+
+    <string name="session_menu_input_switch">Touch input</string>
+    <string name="session_menu_disconnect">Disconnect</string>
+
+    <string name="session_disconnect_confirm">Are you sure to disconnect and quit?</string>
+    <string name="session_disconnect_yes">Yes</string>
+    <string name="session_disconnect_no">No</string>
 
     <!-- Descriptions -->
     <string name="service_desc">Controls Monidroid virtual monitor session</string>

@@ -1,16 +1,12 @@
 package com.asvorded.monidroid
 
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.PointerEvent
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.lifecycle.ViewModel
-import com.asvorded.monidroid.MonidroidProtocol.DEBUG_TAG
 import kotlin.time.DurationUnit
 
 class MonitorViewModel : ViewModel() {
@@ -29,7 +25,11 @@ class MonitorViewModel : ViewModel() {
     var fps: Int by mutableIntStateOf(0)
     var fpsPosition: FpsPosition by mutableStateOf(FpsPosition.TopLeft)
 
+    var touchEnabled by mutableStateOf(true)
+
     var currentFrame: ImageBitmap by mutableStateOf(ImageBitmap(1, 1))
+
+    var disconnectRequested by mutableStateOf(false)
 
     fun onConnected() {
         connectionState = ConnectionStates.DisplayOff
@@ -37,6 +37,14 @@ class MonitorViewModel : ViewModel() {
 
     fun onConnectionLost() {
         connectionState = ConnectionStates.Connecting
+    }
+
+    fun onDisconnectRequest() {
+        disconnectRequested = true
+    }
+
+    fun onCancelDisconnect() {
+        disconnectRequested = false
     }
 
     fun onNewFrame(event: FrameEvent?) {
@@ -48,22 +56,5 @@ class MonitorViewModel : ViewModel() {
             connectionState = ConnectionStates.DisplayOff
             currentFrame = ImageBitmap(1, 1)
         }
-    }
-
-    fun onRawInput(event: PointerEvent) {
-        Log.d(DEBUG_TAG,
-            "TOUCH: ${event.type}, ${event.changes
-                .joinToString(prefix = "[", postfix = "]") {
-                    "(pos=${it.position}, dpos=${it.positionChange()}, pressed=${it.pressed})"
-                }}")
-
-    }
-
-    fun onLButton(pressed: Boolean) {
-
-    }
-
-    fun onRButton(pressed: Boolean) {
-
     }
 }

@@ -1,59 +1,77 @@
 package com.asvorded.monidroid
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.WindowCompat
@@ -62,7 +80,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asvorded.monidroid.MonidroidProtocol.DEBUG_TAG
 import com.asvorded.monidroid.MonitorViewModel.ConnectionStates
 import com.asvorded.monidroid.MonitorViewModel.FpsPosition
@@ -74,6 +91,8 @@ class MonitorActivity : ComponentActivity() {
     private val viewModel: MonitorViewModel by viewModels()
 
     private var service: ClientService? = null
+
+    private var buttonsFlags: UByte = 0u
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -96,16 +115,41 @@ class MonitorActivity : ComponentActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         insetsController.hide(WindowInsetsCompat.Type.systemBars())
 
+        onBackPressedDispatcher.addCallback(object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                viewModel.onDisconnectRequest()
+            }
+        })
+
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
                 MonitorScreen(
                     viewModel,
-                    onLButton = {  },
-                    onRButton = {  },
+                    onLButton = { pressed ->
+                        buttonsFlags = if (pressed) {
+                            buttonsFlags or MonidroidProtocol.MouseFlags.LButton
+                        } else {
+                            buttonsFlags and MonidroidProtocol.MouseFlags.LButton.inv()
+                        }
+                        service?.sendButtons(buttonsFlags)
+                    },
+                    onRButton = { pressed ->
+                        buttonsFlags = if (pressed) {
+                            buttonsFlags or MonidroidProtocol.MouseFlags.RButton
+                        } else {
+                            buttonsFlags and MonidroidProtocol.MouseFlags.RButton.inv()
+                        }
+                        service?.sendButtons(buttonsFlags)
+                    },
                     onMouseMove = { offset ->
                         service?.sendMouseMove(offset.x.toInt(), offset.y.toInt())
                     },
+                    onDisconnectClick = {
+                        service?.disconnect()
+
+                        finish()
+                    }
                 )
             }
         }
@@ -113,7 +157,7 @@ class MonitorActivity : ComponentActivity() {
         // Too low API level
         @Suppress("DEPRECATION")
         val address = intent.getSerializableExtra("address") as InetAddress
-        viewModel.hostname = address.hostAddress
+        viewModel.hostname = if (address.isLoopbackAddress) null else address.hostAddress
 
         val intent = Intent(applicationContext, ClientService::class.java).apply {
             action = ClientService.ACTION_JOIN
@@ -170,9 +214,10 @@ class MonitorActivity : ComponentActivity() {
 @Composable
 fun MonitorScreen(
     viewModel: MonitorViewModel,
-    onLButton: () -> Unit,
-    onRButton: () -> Unit,
-    onMouseMove: (delta: Offset) -> Unit
+    onLButton: (Boolean) -> Unit,
+    onRButton: (Boolean) -> Unit,
+    onMouseMove: (delta: Offset) -> Unit,
+    onDisconnectClick: () -> Unit
 ) {
     Box(
         contentAlignment = Alignment.Center,
@@ -187,12 +232,14 @@ fun MonitorScreen(
                     .fillMaxSize()
                     .blur(if (viewModel.connectionState == ConnectionStates.Connecting)
                         5.dp else 0.dp)
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                if (event.type == PointerEventType.Move) {
-                                    onMouseMove(event.changes.first().positionChange())
+                    .pointerInput(viewModel.touchEnabled) {
+                        if (viewModel.touchEnabled) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    if (event.type == PointerEventType.Move) {
+                                        onMouseMove(event.changes.first().positionChange())
+                                    }
                                 }
                             }
                         }
@@ -207,8 +254,17 @@ fun MonitorScreen(
         } else {
             FpsCounter(viewModel.fps, viewModel.fpsPosition)
 
-            MouseButton(true, onLButton)
-            MouseButton(false, onRButton)
+            SessionMenu(
+                host = viewModel.hostname,
+                touchEnabled = viewModel.touchEnabled,
+                onTouchClick = { enable -> viewModel.touchEnabled = enable },
+                onDisconnectClick = viewModel::onDisconnectRequest
+            )
+
+            if (viewModel.touchEnabled) {
+                MouseButton(true, onLButton)
+                MouseButton(false, onRButton)
+            }
         }
         when (viewModel.connectionState) {
             ConnectionStates.Init -> {
@@ -234,37 +290,154 @@ fun MonitorScreen(
             }
             ConnectionStates.Connected -> Unit
         }
+
+        if (viewModel.disconnectRequested) {
+            Dialog(onDismissRequest = viewModel::onCancelDisconnect) {
+                Card(shape = RoundedCornerShape(15.dp)) {
+                    Column(modifier = Modifier.padding(25.dp).widthIn(max = 260.dp)) {
+                        Text(
+                            stringResource(R.string.session_disconnect_confirm),
+                            fontSize = 24.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+
+                            TextButton(
+                                onClick = onDisconnectClick,
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                            ) {
+                                Text(
+                                    stringResource(R.string.session_disconnect_yes)
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            TextButton(
+                                onClick = viewModel::onCancelDisconnect,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text(
+                                    stringResource(R.string.session_disconnect_no),
+                                    modifier = Modifier.padding(horizontal = 25.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun BoxScope.MouseButton(left: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Gray.copy(alpha = 0.5f),
-            contentColor = Color.White
-        ),
-        border = BorderStroke(2.dp, Color.Gray),
-        shape = CircleShape,
-        contentPadding = PaddingValues(0.dp),
+fun BoxScope.SessionMenu(
+    host: String?,
+    touchEnabled: Boolean,
+    onTouchClick: (Boolean) -> Unit,
+    onDisconnectClick: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+    ) {
+        IconButton(onClick = { expanded = !expanded }) {
+            Image(Icons.Default.Menu,
+                contentDescription = "More options",
+                colorFilter = ColorFilter.tint(Color.Gray)
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            Text(
+                if (host != null) stringResource(R.string.session_connected_to, host)
+                else stringResource(R.string.session_connected_by_usb),
+                modifier = Modifier.padding(MenuDefaults.DropdownMenuItemContentPadding)
+            )
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(stringResource(R.string.session_menu_input_switch))
+                        Spacer(Modifier.width(10.dp))
+                        Switch(touchEnabled, onCheckedChange = { enable ->
+                            expanded = false
+                            onTouchClick(enable)
+                        })
+                    }
+                },
+                onClick = {
+                    expanded = false
+                    onTouchClick(!touchEnabled)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.session_menu_disconnect)) },
+                onClick = onDisconnectClick
+            )
+        }
+    }
+}
+
+@Composable
+fun BoxScope.MouseButton(left: Boolean, onState: (Boolean) -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    var pressed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect {
+            when (it) {
+                is PressInteraction.Press -> {
+                    pressed = true
+                    onState(true)
+                }
+                is PressInteraction.Release,
+                is PressInteraction.Cancel -> {
+                    pressed = false
+                    onState(false)
+                }
+            }
+        }
+    }
+
+    Image(
+        painterResource(if (left) R.drawable.mouse_left_button else R.drawable.mouse_right_button),
+        contentDescription = if (left) "L" else "R",
         modifier = Modifier
             .align(if (left) Alignment.BottomStart else Alignment.BottomEnd)
-            .padding(5.dp)
-    ) {
-        Image(
-            painterResource(if (left) R.drawable.mouse_left_button else R.drawable.mouse_right_button),
-            contentDescription = if (left) "L" else "R",
-            modifier = Modifier.size(56.dp).padding(10.dp)
-        )
-    }
+            .padding(vertical = 5.dp, horizontal = 10.dp)
+            .size(64.dp)
+            .border(
+                width = 4.dp,
+                color = Color.Gray.copy(alpha = if (pressed) 0.7f else 0.3f),
+                shape = CircleShape
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { }
+            )
+            .padding(10.dp)
+            .clip(CircleShape)
+            .graphicsLayer(alpha = if (pressed) 0.7f else 0.3f)
+    )
 }
 
 @Composable
 fun BoxScope.FpsCounter(fps: Int, position: FpsPosition) {
     Text(
         text = stringResource(R.string.monitor_fps, fps),
-        color = Color.Gray,
+        color = Color.Gray.copy(alpha = 0.5f),
         modifier = Modifier
             .align(
                 when (position) {
@@ -275,7 +448,7 @@ fun BoxScope.FpsCounter(fps: Int, position: FpsPosition) {
                 }
             )
             .padding(5.dp)
-            .background(Color.Gray.copy(alpha = 0.4f), RoundedCornerShape(50))
+            .background(Color.DarkGray.copy(alpha = 0.5f), RoundedCornerShape(50))
             .padding(horizontal = 8.dp, vertical = 5.dp)
     )
 }
@@ -325,10 +498,12 @@ fun ScrPreview() {
         .getDrawable(LocalContext.current, R.drawable.error)!!
         .toBitmap()
         .asImageBitmap()
+    viewModel.disconnectRequested = true
     MonitorScreen(
         viewModel,
-        {},
-        {},
-        {}
+        { b -> Log.d(DEBUG_TAG, "LB: $b") },
+        { b -> Log.d(DEBUG_TAG, "RB: $b") },
+        { o -> Log.d(DEBUG_TAG, "MOVING: $o") },
+        { Log.d(DEBUG_TAG, "EXIT"); viewModel.disconnectRequested = false }
     )
 }
