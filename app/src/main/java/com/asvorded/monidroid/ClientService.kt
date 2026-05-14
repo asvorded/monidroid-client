@@ -151,7 +151,7 @@ class ClientService : Service() {
         Log.d(MonidroidProtocol.DEBUG_TAG, "(Debug) $this destroyed")
     }
 
-    fun sendButtons(flags: Int) {
+    fun sendButtons(flags: UByte) {
         sendInput(
             MonidroidProtocol.InputType.MouseButtons,
             byteArrayOf(flags.toByte())

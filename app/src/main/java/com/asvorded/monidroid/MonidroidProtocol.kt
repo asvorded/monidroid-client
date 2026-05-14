@@ -101,9 +101,9 @@ object MonidroidProtocol {
     }
 
     object MouseFlags {
-        const val LButton = 1 shl 0
-        const val RButton = 1 shl 1
-        const val MButton = 1 shl 2
+        val LButton: UByte = (1u shl 0).toUByte()
+        val RButton: UByte = (1u shl 1).toUByte()
+        val MButton: UByte = (1u shl 2).toUByte()
     }
 
     /**
