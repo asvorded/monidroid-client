@@ -254,13 +254,6 @@ fun MonitorScreen(
         } else {
             FpsCounter(viewModel.fps, viewModel.fpsPosition)
 
-            SessionMenu(
-                host = viewModel.hostname,
-                touchEnabled = viewModel.touchEnabled,
-                onTouchClick = { enable -> viewModel.touchEnabled = enable },
-                onDisconnectClick = viewModel::onDisconnectRequest
-            )
-
             if (viewModel.touchEnabled) {
                 MouseButton(true, onLButton)
                 MouseButton(false, onRButton)
@@ -290,6 +283,13 @@ fun MonitorScreen(
             }
             ConnectionStates.Connected -> Unit
         }
+
+        SessionMenu(
+            host = viewModel.hostname,
+            touchEnabled = viewModel.touchEnabled,
+            onTouchClick = { enable -> viewModel.touchEnabled = enable },
+            onDisconnectClick = viewModel::onDisconnectRequest
+        )
 
         if (viewModel.disconnectRequested) {
             Dialog(onDismissRequest = viewModel::onCancelDisconnect) {
@@ -492,13 +492,13 @@ fun ConnectingScreen(
 @Composable
 fun ScrPreview() {
     val viewModel = MonitorViewModel()
-    viewModel.connectionState = ConnectionStates.Connected
+    viewModel.connectionState = ConnectionStates.DisplayOff
     viewModel.hostname = "192.168.1.4"
     viewModel.currentFrame = ContextCompat
         .getDrawable(LocalContext.current, R.drawable.error)!!
         .toBitmap()
         .asImageBitmap()
-    viewModel.disconnectRequested = true
+    viewModel.disconnectRequested = false
     MonitorScreen(
         viewModel,
         { b -> Log.d(DEBUG_TAG, "LB: $b") },
