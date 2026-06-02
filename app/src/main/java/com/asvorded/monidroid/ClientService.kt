@@ -36,8 +36,10 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 import kotlin.time.Duration
+import kotlin.time.DurationUnit
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
+import kotlin.time.toDuration
 
 sealed class FirstConnectionState {
     class Connecting : FirstConnectionState()
@@ -70,9 +72,10 @@ data class MonitorMode(
     }
 }
 
-data class FrameEvent(
+data class FrameEvent2(
     val bitmap: Bitmap,
-    val frameTime: Duration
+    val frameDuration: Duration,
+    val latency: Duration
 )
 
 class ClientService : Service() {
@@ -97,13 +100,14 @@ class ClientService : Service() {
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Initialized())
     val state = _state.asStateFlow()
 
-    private val _event = MutableSharedFlow<FrameEvent?>()
+    private val _event = MutableSharedFlow<FrameEvent2?>()
     val frameEvent = _event.asSharedFlow()
 
     private lateinit var hostInfo: HostInfo
     private var port: Int = 0
     private var isUsb = false
     private lateinit var preferredMode: MonitorMode
+    private var syncTime = TimeSource.Monotonic.markNow()
     private var lastFrameTime = TimeSource.Monotonic.markNow()
 
     private var binder: ClientBinder = ClientBinder()
@@ -314,6 +318,8 @@ class ClientService : Service() {
         try {
             // Send WELCOME message to identify device
             sendWelcome()
+            // Send Time sync for latency measurement
+            sendTimeSync()
 
             _state.value = ConnectionState.Streaming()
             val reader = DataInputStream(clientSocket.getInputStream())
@@ -324,8 +330,8 @@ class ClientService : Service() {
                 val headerBuf = ByteArray(MonidroidProtocol.WORD_LEN)
                 reader.readFully(headerBuf)
                 when (headerBuf.toString(StandardCharsets.US_ASCII)) {
-                    MonidroidProtocol.SV_FRAME_WORD -> {
-                        receiveFrame(reader)
+                    MonidroidProtocol.SV_FRAME2_WORD -> {
+                        receiveFrame2(reader)
                     }
 
                     MonidroidProtocol.SV_ERROR_WORD -> {
@@ -372,7 +378,18 @@ class ClientService : Service() {
         out.write(bs.toByteArray())
     }
 
-    private fun receiveFrame(reader: DataInputStream) {
+    private fun sendTimeSync() {
+        val out = clientSocket.getOutputStream()
+        out.write(MonidroidProtocol.TIME_SYNC_WORD.toByteArray())
+
+        syncTime = TimeSource.Monotonic.markNow()
+    }
+
+    private fun receiveFrame2(reader: DataInputStream) {
+        val timeBuf = ByteArray(8)
+        reader.readFully(timeBuf)
+        val stamp = ByteBuffer.wrap(timeBuf).order(ByteOrder.LITTLE_ENDIAN).getLong()
+
         val sizeBuf = ByteArray(4)
         reader.readFully(sizeBuf)
         val imageSize = ByteBuffer.wrap(sizeBuf).order(ByteOrder.LITTLE_ENDIAN).getInt()
@@ -387,11 +404,13 @@ class ClientService : Service() {
                 imageBuf, 0, imageSize, BitmapFactory.Options()
             )
 
+            // Calc latency and fps
             val current = TimeSource.Monotonic.markNow()
-            val duration = current - lastFrameTime
-            lastFrameTime = TimeSource.Monotonic.markNow()
+            val expected = stamp.toDuration(DurationUnit.NANOSECONDS)
+            val actual = current - syncTime
             runBlocking {
-                _event.emit(FrameEvent(bitmap, duration))
+                _event.emit(FrameEvent2(bitmap,
+                    current - lastFrameTime, actual - expected))
             }
         } else {
             runBlocking {

@@ -40,6 +40,11 @@
     <string name="display_off">Display disabled</string>
     <string name="monitor_fps">%1$d fps</string>
 
+    <string name="session_latency_seconds">%1$.2f s</string>
+    <string name="session_latency_millis">%1$d ms</string>
+    <string name="session_latency_micros">%1$d µs</string>
+    <string name="session_latency_nanos">%1$d ns</string>
+
     <string name="connection_lost">Connection lost</string>
     <string name="trying_restore_connection">We are trying to restore connection</string>
     <string name="host_name">Host: %1$s</string>

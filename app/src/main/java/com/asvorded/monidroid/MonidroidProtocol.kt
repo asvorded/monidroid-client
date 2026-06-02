@@ -47,6 +47,15 @@ object MonidroidProtocol {
     const val USB_WELCOME_WORD = "CUSBW"
 
     /**
+     * **Time Sync Client message**
+     *
+     * Sent for sync session time
+     *
+     * Format: none
+     */
+    const val TIME_SYNC_WORD = "CTSYN"
+
+    /**
      * ** STREAM Server message
      *
      * Sent when server enables streaming instead of sending full frames
@@ -63,6 +72,15 @@ object MonidroidProtocol {
      * Format: <data length(int)><data(byte[])>
      */
     const val SV_FRAME_WORD = "SFRME"
+
+    /**
+     * **FRAME ver. 2 message**
+     *
+     * Sent when the next frame is ready to display
+     *
+     * Format: <frame time(int64)><data length(int)><data(byte[])>
+     */
+    const val SV_FRAME2_WORD = "SFRM2"
 
     /**
      * **ERROR Server message**

@@ -32,6 +32,12 @@
     <string name="display_off">Монитор выключен</string>
 
     <string name="monitor_fps">%1$s к/с</string>
+
+    <string name="session_latency_seconds">%1$.2f с</string>
+    <string name="session_latency_millis">%1$d мс</string>
+    <string name="session_latency_micros">%1$d мкс</string>
+    <string name="session_latency_nanos">%1$d нс</string>
+
     <string name="connection_lost">Соединение потеряно</string>
     <string name="trying_restore_connection">Мы пробуем восстановить соединение</string>
     <string name="host_name">Компьютер: %1$s</string>

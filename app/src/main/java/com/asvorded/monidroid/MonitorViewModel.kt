@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
+import kotlin.time.Duration
 import kotlin.time.DurationUnit
 
 class MonitorViewModel : ViewModel() {
@@ -24,6 +25,7 @@ class MonitorViewModel : ViewModel() {
 
     var fps: Int by mutableIntStateOf(0)
     var fpsPosition: FpsPosition by mutableStateOf(FpsPosition.TopLeft)
+    var latency: Duration by mutableStateOf(Duration.ZERO)
 
     var touchEnabled by mutableStateOf(true)
 
@@ -47,14 +49,18 @@ class MonitorViewModel : ViewModel() {
         disconnectRequested = false
     }
 
-    fun onNewFrame(event: FrameEvent?) {
+
+
+    fun onNewFrame(event: FrameEvent2?) {
         if (event != null) {
             connectionState = ConnectionStates.Connected
             currentFrame = event.bitmap.asImageBitmap()
-            fps = (1.0 / event.frameTime.toDouble(DurationUnit.SECONDS)).toInt()
+            fps = (1.0 / event.frameDuration.toDouble(DurationUnit.SECONDS)).toInt()
+            latency = event.latency
         } else {
             connectionState = ConnectionStates.DisplayOff
             currentFrame = ImageBitmap(1, 1)
+            fps = 0
         }
     }
 }

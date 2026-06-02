@@ -1,6 +1,7 @@
 package com.asvorded.monidroid
 
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
@@ -86,6 +87,11 @@ import com.asvorded.monidroid.MonitorViewModel.FpsPosition
 import com.asvorded.monidroid.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.net.InetAddress
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 class MonitorActivity : ComponentActivity() {
     private val viewModel: MonitorViewModel by viewModels()
@@ -252,7 +258,7 @@ fun MonitorScreen(
                 .blur(5.dp)
                 .background(Color.Black.copy(alpha = 0.6f)))
         } else {
-            FpsCounter(viewModel.fps, viewModel.fpsPosition)
+            FpsCounter(viewModel.fps, viewModel.fpsPosition, viewModel.latency)
 
             if (viewModel.touchEnabled) {
                 MouseButton(true, onLButton)
@@ -433,11 +439,40 @@ fun BoxScope.MouseButton(left: Boolean, onState: (Boolean) -> Unit) {
     )
 }
 
+fun Duration.formatDynamic(ctx: Context): String {
+    val absDuration = this.absoluteValue
+
+    return when {
+        absDuration >= 1.seconds ->
+            ctx.getString(
+                R.string.session_latency_seconds,
+                this.toDouble(DurationUnit.SECONDS)
+            )
+
+        absDuration >= 1.milliseconds ->
+            ctx.getString(
+                R.string.session_latency_millis,
+                this.toInt(DurationUnit.MILLISECONDS)
+            )
+
+        absDuration >= 1.microseconds ->
+            ctx.getString(
+                R.string.session_latency_micros,
+                this.toInt(DurationUnit.MICROSECONDS)
+            )
+
+        else ->
+            ctx.getString(
+                R.string.session_latency_nanos,
+                this.toInt(DurationUnit.NANOSECONDS)
+            )
+    }
+}
+
 @Composable
-fun BoxScope.FpsCounter(fps: Int, position: FpsPosition) {
-    Text(
-        text = stringResource(R.string.monitor_fps, fps),
-        color = Color.Gray.copy(alpha = 0.5f),
+fun BoxScope.FpsCounter(fps: Int, position: FpsPosition, latency: Duration = Duration.ZERO) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .align(
                 when (position) {
@@ -447,10 +482,25 @@ fun BoxScope.FpsCounter(fps: Int, position: FpsPosition) {
                     FpsPosition.BottomRight -> Alignment.BottomEnd
                 }
             )
-            .padding(5.dp)
-            .background(Color.DarkGray.copy(alpha = 0.5f), RoundedCornerShape(50))
-            .padding(horizontal = 8.dp, vertical = 5.dp)
-    )
+            .padding(start = 5.dp, end = 5.dp, top = 5.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.monitor_fps, fps),
+            color = Color.Gray.copy(alpha = 0.5f),
+            modifier = Modifier
+                .background(Color.DarkGray.copy(alpha = 0.5f), RoundedCornerShape(50))
+                .padding(horizontal = 8.dp, vertical = 5.dp)
+        )
+        if (latency.isPositive()) {
+            Text(
+                latency.formatDynamic(LocalContext.current),
+                fontSize = 11.sp,
+                color = Color.Gray.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .padding(top = 3.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -492,12 +542,13 @@ fun ConnectingScreen(
 @Composable
 fun ScrPreview() {
     val viewModel = MonitorViewModel()
-    viewModel.connectionState = ConnectionStates.DisplayOff
+    viewModel.connectionState = ConnectionStates.Connected
     viewModel.hostname = "192.168.1.4"
     viewModel.currentFrame = ContextCompat
         .getDrawable(LocalContext.current, R.drawable.error)!!
         .toBitmap()
         .asImageBitmap()
+    viewModel.latency = 557.milliseconds
     viewModel.disconnectRequested = false
     MonitorScreen(
         viewModel,
