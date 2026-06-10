@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Dangerous
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -337,6 +338,12 @@ fun ManualConnectionForm(
         ) {
             OutlinedButton(
                 onClick = onWifiConnectClick,
+                contentPadding = PaddingValues(
+                    start = 2.dp,
+                    top = ButtonDefaults.ContentPadding.calculateTopPadding(),
+                    end = 2.dp,
+                    bottom = ButtonDefaults.ContentPadding.calculateBottomPadding()
+                ),
                 modifier = Modifier.weight(1f)
             ) {
                 Text(stringResource(R.string.connect_button))
