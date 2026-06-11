@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaCodec
+import android.media.MediaFormat
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -15,7 +17,10 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.asvorded.monidroid.EchoClient.HostInfo
+import com.asvorded.monidroid.MonidroidProtocol.DEBUG_TAG
 import com.asvorded.monidroid.MonidroidProtocol.ErrorCode
+import com.asvorded.monidroid.MonidroidProtocol.NalType
+import com.asvorded.monidroid.MonidroidProtocol.NalUnit
 import com.asvorded.monidroid.MonidroidProtocol.OsId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -109,6 +114,8 @@ class ClientService : Service() {
     private lateinit var preferredMode: MonitorMode
     private var syncTime = TimeSource.Monotonic.markNow()
     private var lastFrameTime = TimeSource.Monotonic.markNow()
+    private val codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+    private var codecConfigured = false
 
     private var binder: ClientBinder = ClientBinder()
 
@@ -147,12 +154,12 @@ class ClientService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(MonidroidProtocol.DEBUG_TAG, "(Debug) $this created")
+        Log.d(DEBUG_TAG, "(Debug) $this created")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(MonidroidProtocol.DEBUG_TAG, "(Debug) $this destroyed")
+        Log.d(DEBUG_TAG, "(Debug) $this destroyed")
     }
 
     fun sendButtons(flags: UByte) {
@@ -334,6 +341,18 @@ class ClientService : Service() {
                         receiveFrame2(reader)
                     }
 
+                    MonidroidProtocol.SV_STREAM_FRAME_WORD -> {
+                        try {
+                            receiveStreamFrame(reader)
+                        } catch (e: IOException) {
+                            throw e
+                        } catch (e: Exception) {
+                            _state.value = ConnectionState.ServerError(0, e.message)
+                            running = false
+                            break
+                        }
+                    }
+
                     MonidroidProtocol.SV_ERROR_WORD -> {
                         receiveError(reader)
                         running = false
@@ -412,6 +431,149 @@ class ClientService : Service() {
                 _event.emit(FrameEvent2(bitmap,
                     current - lastFrameTime, actual - expected))
             }
+        } else {
+            runBlocking {
+                _event.emit(null)
+            }
+        }
+    }
+
+    private fun receiveStreamFrame(reader: DataInputStream) {
+        val timeBuf = ByteArray(8)
+        reader.readFully(timeBuf)
+        val stampNs = ByteBuffer.wrap(timeBuf).order(ByteOrder.LITTLE_ENDIAN).getLong()
+
+        val sizeBuf = ByteArray(4)
+        reader.readFully(sizeBuf)
+        val dataSize = ByteBuffer.wrap(sizeBuf).order(ByteOrder.LITTLE_ENDIAN).getInt()
+
+        if (dataSize > 0) {
+            val raw = ByteArray(dataSize)
+            reader.readFully(raw)
+
+            // Parse data into NAL units
+            val nalBuffer = ByteBuffer.wrap(raw).order(ByteOrder.BIG_ENDIAN)
+            val nals = mutableListOf<NalUnit>()
+            while (nalBuffer.hasRemaining()) {
+                val size = nalBuffer.getInt()
+                val offs = nalBuffer.position()
+
+                // Replace size with 00 00 00 01...
+                nalBuffer.put(offs - 4, 0)
+                nalBuffer.put(offs - 3, 0)
+                nalBuffer.put(offs - 2, 0)
+                nalBuffer.put(offs - 1, 1)
+                // ... and set offset to the beginning of NAL including start code
+                nals.add(NalUnit(
+                    NalType.fromHeader(nalBuffer[offs]),
+                    raw, offs - 4, size + 4)
+                )
+                nalBuffer.position(offs + size)
+            }
+
+            val sps = nals.find { it.type == NalType.SPS }
+            val pps = nals.find { it.type == NalType.PPS }
+            if (sps != null && pps != null) {
+                val format = MediaFormat.createVideoFormat(
+                    MediaFormat.MIMETYPE_VIDEO_AVC, preferredMode.width, preferredMode.height
+                )
+                format.setByteBuffer(
+                    "csd-0", ByteBuffer.wrap(
+                        sps.payload.sliceArray(
+                            sps.offset until sps.offset + sps.length
+                        )
+                    )
+                )
+                format.setByteBuffer(
+                    "csd-1", ByteBuffer.wrap(
+                        pps.payload.sliceArray(
+                            pps.offset until pps.offset + pps.length
+                        )
+                    )
+                )
+
+                if (codecConfigured) {
+                    codec.stop()
+                }
+                codec.configure(format, null, null, 0)
+                codec.start()
+                codecConfigured = true
+            }
+
+            // Send data to codec
+            val inId = codec.dequeueInputBuffer(500_000)
+            if (inId >= 0) {
+                val input = codec.getInputBuffer(inId)!!
+                if (input.capacity() >= raw.size) {
+                    input.clear()
+                    input.put(raw)
+                    codec.queueInputBuffer(
+                        inId,
+                        0, raw.size,
+                        stampNs / 1000,
+                        0
+                    )
+                } else {
+                    codec.queueInputBuffer(inId, 0, 0, 0, 0)
+
+                    for (nal in nals) {
+                        val inId2 = codec.dequeueInputBuffer(500_000)
+                        if (inId2 >= 0) {
+                            val buf = codec.getInputBuffer(inId2)!!
+                            buf.clear()
+                            buf.put(nal.payload, nal.offset, nal.length)
+                            codec.queueInputBuffer(
+                                inId2,
+                                0, nal.length,
+                                stampNs / 1000,
+                                0
+                            )
+                        } else {
+                            throw IllegalStateException("Codec buffer is not available")
+                        }
+                    }
+                }
+            } else {
+                throw IllegalStateException("Codec buffer is not available")
+            }
+
+            // Wait a frame from the codec
+            val info = MediaCodec.BufferInfo()
+            while (true) {
+                val outId = codec.dequeueOutputBuffer(info, 0)
+                when (outId) {
+                    // MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED,
+                    MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                        break
+                    }
+
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                        val format = codec.outputFormat
+                    }
+
+                    else -> {
+                        val image = codec.getOutputImage(outId)!!
+                        val buffer = image.planes[0].buffer
+                        val bytes = ByteArray(buffer.capacity())
+                        buffer.get(bytes)
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+
+                        // Calc latency and fps
+                        val current = TimeSource.Monotonic.markNow()
+                        val expected = stampNs.toDuration(DurationUnit.NANOSECONDS)
+                        val actual = current - syncTime
+                        runBlocking {
+                            _event.emit(FrameEvent2(bitmap,
+                                current - lastFrameTime, actual - expected))
+                        }
+
+                        Log.d(DEBUG_TAG, "YES !!!!")
+                        codec.releaseOutputBuffer(outId, false) // TODO: render to true
+                        break
+                    }
+                }
+            }
+
         } else {
             runBlocking {
                 _event.emit(null)

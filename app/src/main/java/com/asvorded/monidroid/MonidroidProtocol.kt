@@ -58,11 +58,37 @@ object MonidroidProtocol {
     /**
      * ** STREAM Server message
      *
-     * Sent when server enables streaming instead of sending full frames
+     * An H.264 access unit with application-specific metadata
      *
-     * Format: TODO: make format
+     * Format: <frame time: int64><data length: int><data: byte[]>
      */
-    const val SV_STREAM_WORD = "SSTRM"
+    const val SV_STREAM_FRAME_WORD = "SSFRM"
+
+    data class NalUnit(
+        val type: NalType,
+        val payload: ByteArray,
+        val offset: Int,
+        val length: Int
+    )
+
+    enum class NalType(val value: Int) {
+        UNKNOWN(-1),
+        SLICE(1),
+        DPA(2),
+        DPB(3),
+        DPC(4),
+        IDR(5),
+        SEI(6),
+        SPS(7),
+        PPS(8),
+        AUD(9);
+
+        companion object {
+            fun fromHeader(byte: Byte) = entries.find {
+                it.value == (byte.toInt() and 0x1F)
+            } ?: UNKNOWN
+        }
+    }
 
     /**
      * **FRAME Server message**
